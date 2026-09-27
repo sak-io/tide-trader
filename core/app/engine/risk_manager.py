@@ -1,3 +1,4 @@
+import threading
 from datetime import date
 from typing import Callable
 
@@ -31,6 +32,11 @@ class RiskManager:
         self.max_position_dollars = max_position_dollars
         self.daily_loss_limit_pct = daily_loss_limit_pct
         self._clock = clock or date.today
+        # FastAPI runs sync route handlers in a thread pool, so concurrent
+        # requests can genuinely interleave here - this serializes every
+        # read-check-write against risk state so two orders can't both pass
+        # a check before either one's write is visible to the other.
+        self._lock = threading.Lock()
 
     def _today(self) -> str:
         return self._clock().isoformat()
@@ -46,18 +52,20 @@ class RiskManager:
         return self._store.load().kill_switch_active
 
     def activate_kill_switch(self, reason: str | None = None) -> RiskState:
-        state = self._store.load()
-        state.kill_switch_active = True
-        state.kill_switch_reason = reason
-        self._store.save(state)
-        return state
+        with self._lock:
+            state = self._store.load()
+            state.kill_switch_active = True
+            state.kill_switch_reason = reason
+            self._store.save(state)
+            return state
 
     def reset_kill_switch(self) -> RiskState:
-        state = self._store.load()
-        state.kill_switch_active = False
-        state.kill_switch_reason = None
-        self._store.save(state)
-        return state
+        with self._lock:
+            state = self._store.load()
+            state.kill_switch_active = False
+            state.kill_switch_reason = None
+            self._store.save(state)
+            return state
 
     def current_drawdown_pct(self, current_equity: float) -> float:
         state = self._store.load()
@@ -78,33 +86,34 @@ class RiskManager:
         tracker forward and auto-activates the kill switch the moment the
         configured daily loss limit is breached.
         """
-        state = self._store.load()
+        with self._lock:
+            state = self._store.load()
 
-        if state.kill_switch_active:
-            raise RiskViolation("Kill switch is active; all trading is halted.")
+            if state.kill_switch_active:
+                raise RiskViolation("Kill switch is active; all trading is halted.")
 
-        notional = qty * price
-        if notional > self.max_position_dollars:
-            raise RiskViolation(
-                f"Order notional ${notional:,.2f} for {symbol} exceeds max position size "
-                f"of ${self.max_position_dollars:,.2f}."
-            )
-
-        if current_equity is None:
-            return
-
-        state = self._roll_day_if_needed(state, current_equity)
-
-        if state.day_start_equity:
-            drawdown = (state.day_start_equity - current_equity) / state.day_start_equity
-            if drawdown >= self.daily_loss_limit_pct:
-                state.kill_switch_active = True
-                state.kill_switch_reason = (
-                    f"Daily loss limit of {self.daily_loss_limit_pct:.1%} exceeded "
-                    f"(drawdown {drawdown:.1%})"
+            notional = qty * price
+            if notional > self.max_position_dollars:
+                raise RiskViolation(
+                    f"Order notional ${notional:,.2f} for {symbol} exceeds max position size "
+                    f"of ${self.max_position_dollars:,.2f}."
                 )
-                self._store.save(state)
-                raise RiskViolation(state.kill_switch_reason)
 
-        state.last_equity = current_equity
-        self._store.save(state)
+            if current_equity is None:
+                return
+
+            state = self._roll_day_if_needed(state, current_equity)
+
+            if state.day_start_equity:
+                drawdown = (state.day_start_equity - current_equity) / state.day_start_equity
+                if drawdown >= self.daily_loss_limit_pct:
+                    state.kill_switch_active = True
+                    state.kill_switch_reason = (
+                        f"Daily loss limit of {self.daily_loss_limit_pct:.1%} exceeded "
+                        f"(drawdown {drawdown:.1%})"
+                    )
+                    self._store.save(state)
+                    raise RiskViolation(state.kill_switch_reason)
+
+            state.last_equity = current_equity
+            self._store.save(state)

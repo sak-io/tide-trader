@@ -1,3 +1,5 @@
+import threading
+import time
 from datetime import date
 
 import pytest
@@ -86,3 +88,40 @@ def test_day_rollover_resets_start_of_day_equity(tmp_path):
 def test_current_drawdown_pct_is_zero_with_no_history(tmp_path):
     manager = make_manager(tmp_path)
     assert manager.current_drawdown_pct(10000.0) == 0.0
+
+
+def test_validate_order_serializes_concurrent_calls(tmp_path):
+    """Two threads must never be inside the read-check-write section at once.
+
+    Without the lock, concurrent requests could both read the pre-trade state
+    before either commits, letting two orders both pass a check that should
+    only ever allow one of them through.
+    """
+    manager = make_manager(tmp_path)
+
+    concurrency = {"current": 0, "max": 0}
+    counter_lock = threading.Lock()
+    original_load = manager._store.load
+
+    def instrumented_load():
+        with counter_lock:
+            concurrency["current"] += 1
+            concurrency["max"] = max(concurrency["max"], concurrency["current"])
+        time.sleep(0.02)  # widen the window so an unsynchronized race would show up
+        result = original_load()
+        with counter_lock:
+            concurrency["current"] -= 1
+        return result
+
+    manager._store.load = instrumented_load
+
+    threads = [
+        threading.Thread(target=manager.validate_order, kwargs={"symbol": "AAPL", "qty": 1, "price": 10.0})
+        for _ in range(8)
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert concurrency["max"] == 1

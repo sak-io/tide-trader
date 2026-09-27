@@ -1,5 +1,5 @@
 import { app, safeStorage } from 'electron'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import type { Credentials } from '../shared/types'
 
@@ -44,5 +44,5 @@ export function saveCredentials(credentials: Credentials): void {
 
 export function clearCredentials(): void {
   const path = configPath()
-  if (existsSync(path)) writeFileSync(path, JSON.stringify({}), 'utf-8')
+  if (existsSync(path)) unlinkSync(path)
 }
