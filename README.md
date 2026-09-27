@@ -1,5 +1,7 @@
 # Tide Trader
 
+[![CI](https://github.com/sak-io/tide-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/sak-io/tide-trader/actions/workflows/ci.yml)
+
 A macOS desktop app for realtime market research on top of Alpaca's paper trading
 API — live quotes, most-active/mover screeners, and historical price charts —
 paired with a Python backend that owns order execution and risk controls.
@@ -107,6 +109,18 @@ docker compose up --build
 The compose file publishes the API only to `127.0.0.1` on the host (not your
 LAN) and persists the risk-manager's SQLite state in a named volume so it
 survives container restarts.
+
+## Continuous integration
+
+Every push to `main` and every pull request runs
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml), with one job per
+language:
+
+- **backend-tests** — `uv sync --locked`, then `pytest --cov=app` in `core/`.
+- **frontend-build** — `npm ci`, `npm run typecheck`, `npm run build` for the
+  Electron app.
+
+Both must pass before merging a PR.
 
 ## Project structure
 
