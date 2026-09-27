@@ -17,6 +17,7 @@ import type {
 
 const api = {
   getConfigStatus: (): Promise<ConfigStatus> => ipcRenderer.invoke('alpaca:get-config-status'),
+  getEncryptionStatus: (): Promise<boolean> => ipcRenderer.invoke('alpaca:get-encryption-status'),
   saveCredentials: (credentials: Credentials): Promise<SaveCredentialsResult> =>
     ipcRenderer.invoke('alpaca:save-credentials', credentials),
   clearCredentials: (): Promise<void> => ipcRenderer.invoke('alpaca:clear-credentials'),

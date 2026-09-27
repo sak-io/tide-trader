@@ -182,6 +182,19 @@ restart can't silently erase a halt that was put in place for a reason.
   fine for research, not a substitute for a professional data feed.
 - The Python backend has no auto-launch story yet — you start it by hand
   before opening the desktop app.
+- The pre-trade risk check prices market orders off a quote fetched moments
+  before submission, not the actual fill price - the real notional of a
+  filled market order can end up slightly over `MAX_POSITION_DOLLARS` if the
+  price moves in between. Accepted for now; tightening it would mean adding a
+  post-fill reconciliation check, which doesn't exist yet.
+- Electron is pinned to the 43.x line, not latest. Electron 44 raised its
+  minimum macOS version to 13 (Ventura) - it links against `SMAppService`
+  from macOS's ServiceManagement framework unconditionally, so it hard-crashes
+  at launch (`dyld: Symbol not found: _OBJC_CLASS_$_SMAppService`) on macOS 12
+  and older. Discovered empirically (binary search across major versions)
+  while bumping Electron for unrelated CVE fixes; found no advance notice of
+  this in the version we tried to jump to. Revisit this pin once the
+  project's minimum supported macOS version moves to 13+.
 
 ## Roadmap
 

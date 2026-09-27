@@ -6,6 +6,8 @@ dist-electron
 *.tsbuildinfo
 .DS_Store
 .env
+.issues_comments
+.claude
 
 # Python (core/)
 .venv

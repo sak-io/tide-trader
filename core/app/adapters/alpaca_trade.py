@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Protocol
 
 from alpaca.data.historical.stock import StockHistoricalDataClient
@@ -148,7 +148,7 @@ class AlpacaTradeAdapter:
         order_type = OrderType.limit if limit_price is not None else OrderType.market
 
         filled_avg_price = raw.filled_avg_price
-        submitted_at = raw.submitted_at or datetime.now(timezone.utc)
+        submitted_at = raw.submitted_at or datetime.now(UTC)
 
         return OrderResponse(
             id=str(raw.id),

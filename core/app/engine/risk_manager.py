@@ -1,6 +1,6 @@
 import threading
+from collections.abc import Callable
 from datetime import date
-from typing import Callable
 
 from app.engine.state_store import RiskState, StateStore
 

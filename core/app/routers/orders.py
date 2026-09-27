@@ -20,6 +20,11 @@ def create_order(
     adapter: AlpacaTradeAdapter = Depends(get_trade_adapter),
     risk_manager: RiskManager = Depends(get_risk_manager),
 ) -> OrderResponse:
+    # For market orders, this is a live quote fetched moments before submission -
+    # not the actual fill price. The real notional of a filled market order can
+    # end up slightly over MAX_POSITION_DOLLARS if the price moves between this
+    # check and execution. Accepted approximation for now: tightening this would
+    # mean a post-fill reconciliation check, which doesn't exist yet.
     reference_price = order.limit_price or adapter.get_latest_price(order.symbol)
     account = adapter.get_account()
 

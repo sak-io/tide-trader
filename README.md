@@ -37,7 +37,12 @@ together and why they're built this way.
 - **Python 3.12** and [`uv`](https://docs.astral.sh/uv/) for the backend.
 - An **Alpaca Paper Trading account** (free) — see below.
 - macOS (the Electron app targets macOS; an iOS companion app is a future
-  goal, not built yet).
+  goal, not built yet). Electron 44+ requires macOS 13 (Ventura) or newer —
+  on macOS 12 (Monterey) or older, the app crashes on launch with a `dyld`
+  error (`Symbol not found: _OBJC_CLASS_$_SMAppService`). This repo pins
+  Electron to the 43.x line specifically to stay compatible with macOS 12;
+  don't bump past `44.0.0` without checking your minimum supported macOS
+  version first.
 
 ### Getting Alpaca paper trading API keys
 
@@ -78,20 +83,40 @@ With the backend running (the dashboard's screener/chart data depends on it):
 
 ```bash
 npm install
+npm run allow-scripts   # runs the allowlisted install scripts (LavaMoat) - see below
 npm run dev
 ```
 
 On first launch you'll be asked for your Alpaca Paper API Key ID and Secret.
 They're validated against Alpaca before being saved, then stored **encrypted**
 via Electron's `safeStorage` (backed by the macOS Keychain) — never as a
-plaintext file, and never committed to this repo.
+plaintext file, and never committed to this repo. If OS-level encryption isn't
+available on your machine, the app warns you and falls back to a plaintext
+file instead of silently claiming otherwise.
 
 ### Other useful commands
 
 ```bash
 npm run typecheck   # TypeScript, both main and renderer
+npm run lint         # ESLint
 npm run build       # production build (electron-vite)
 ```
+
+### Install scripts (LavaMoat)
+
+`.npmrc` sets `ignore-scripts=true`, so `npm install`/`npm ci` won't silently
+run arbitrary postinstall scripts from third-party packages. Only the
+packages explicitly allowlisted under `lavamoat.allowScripts` in
+`package.json` (currently just `esbuild`, a transitive dep of `vite`, which
+needs to fetch its native binary) get their scripts run, via:
+
+```bash
+npm run allow-scripts
+```
+
+If you add a dependency that needs an install script, review it, then add it
+to the allowlist with `npx allow-scripts auto` (defaults new entries to
+`false`/denied — flip to `true` after reviewing what the script does).
 
 ## Running the backend in Docker
 
@@ -116,8 +141,10 @@ Every push to `main` and every pull request runs
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml), with one job per
 language:
 
-- **backend-tests** — `uv sync --locked`, then `pytest --cov=app` in `core/`.
-- **frontend-build** — `npm ci`, `npm run typecheck`, `npm run build` for the
+- **backend-tests** — `uv sync --locked`, then `ruff check`, `bandit`,
+  `pip-audit`, and `pytest --cov=app` in `core/`.
+- **frontend-build** — `npm ci`, `npm run allow-scripts`, `npm run lint`,
+  `npm audit --omit=dev`, `npm run typecheck`, `npm run build` for the
   Electron app.
 
 Both must pass before merging a PR.

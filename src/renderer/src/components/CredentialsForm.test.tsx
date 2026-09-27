@@ -14,8 +14,13 @@ function fillAndSubmit(keyId: string, secret: string): void {
 
 describe('CredentialsForm', () => {
   beforeEach(() => {
-    ;(window as unknown as { alpaca: { saveCredentials: ReturnType<typeof vi.fn> } }).alpaca = {
-      saveCredentials: vi.fn()
+    ;(
+      window as unknown as {
+        alpaca: { saveCredentials: ReturnType<typeof vi.fn>; getEncryptionStatus: ReturnType<typeof vi.fn> }
+      }
+    ).alpaca = {
+      saveCredentials: vi.fn(),
+      getEncryptionStatus: vi.fn().mockResolvedValue(true)
     }
   })
 
@@ -52,5 +57,24 @@ describe('CredentialsForm', () => {
     fillAndSubmit('PKBAD', 'wrongsecret')
 
     expect(await screen.findByText('Could not verify these keys with Alpaca.')).toBeInTheDocument()
+  })
+
+  it('warns when OS-level encryption is unavailable', async () => {
+    window.alpaca.getEncryptionStatus = vi.fn().mockResolvedValue(false)
+
+    render(<CredentialsForm onSaved={vi.fn()} />)
+
+    expect(
+      await screen.findByText(/keys will be saved in plain text/i)
+    ).toBeInTheDocument()
+  })
+
+  it('does not warn when OS-level encryption is available', async () => {
+    window.alpaca.getEncryptionStatus = vi.fn().mockResolvedValue(true)
+
+    render(<CredentialsForm onSaved={vi.fn()} />)
+
+    await waitFor(() => expect(window.alpaca.getEncryptionStatus).toHaveBeenCalled())
+    expect(screen.queryByText(/plain text/i)).not.toBeInTheDocument()
   })
 })

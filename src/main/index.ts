@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
-import { clearCredentials, loadCredentials, saveCredentials } from './config'
+import { clearCredentials, isEncryptionAvailable, loadCredentials, saveCredentials } from './config'
 import { getLatestSnapshot, searchAssets, validateCredentials } from './alpacaRest'
 import { fetchBars, fetchMostActive, fetchMovers } from './backendClient'
 import { AlpacaStream } from './alpacaStream'
@@ -18,8 +18,7 @@ function createWindow(): void {
     show: false,
     autoHideMenuBar: true,
     webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      preload: join(__dirname, '../preload/index.js')
     }
   })
 
@@ -61,6 +60,8 @@ function registerIpcHandlers(): void {
       return { success: true }
     }
   )
+
+  ipcMain.handle('alpaca:get-encryption-status', (): boolean => isEncryptionAvailable())
 
   ipcMain.handle('alpaca:clear-credentials', () => {
     stream.disconnect()

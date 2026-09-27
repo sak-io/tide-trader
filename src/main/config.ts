@@ -46,3 +46,7 @@ export function clearCredentials(): void {
   const path = configPath()
   if (existsSync(path)) unlinkSync(path)
 }
+
+export function isEncryptionAvailable(): boolean {
+  return safeStorage.isEncryptionAvailable()
+}

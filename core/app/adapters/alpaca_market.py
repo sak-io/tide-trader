@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 from alpaca.data.enums import DataFeed
@@ -85,8 +85,8 @@ class AlpacaMarketDataClient:
         request = StockBarsRequest(
             symbol_or_symbols=symbol,
             timeframe=parse_timeframe(timeframe),
-            start=start or (datetime.now(timezone.utc) - timedelta(days=30)),
-            end=end or datetime.now(timezone.utc),
+            start=start or (datetime.now(UTC) - timedelta(days=30)),
+            end=end or datetime.now(UTC),
             limit=limit,
             # The paper account's market data subscription only entitles IEX,
             # not the full SIP feed (Alpaca's default) - matches the streaming feed.

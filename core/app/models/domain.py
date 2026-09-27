@@ -1,20 +1,20 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
 
 
-class OrderSide(str, Enum):
+class OrderSide(StrEnum):
     buy = "buy"
     sell = "sell"
 
 
-class OrderType(str, Enum):
+class OrderType(StrEnum):
     market = "market"
     limit = "limit"
 
 
-class OrderStatus(str, Enum):
+class OrderStatus(StrEnum):
     new = "new"
     pending_new = "pending_new"
     accepted = "accepted"
@@ -72,7 +72,7 @@ class AccountSummary(BaseModel):
     daily_pl_pct: float
 
 
-class KillSwitchAction(str, Enum):
+class KillSwitchAction(StrEnum):
     activate = "activate"
     reset = "reset"
 

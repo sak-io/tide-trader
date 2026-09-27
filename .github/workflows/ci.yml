@@ -33,6 +33,15 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
+      - name: Lint
+        run: uv run ruff check app
+
+      - name: Security scan (Bandit)
+        run: uv run bandit -r app
+
+      - name: Dependency vulnerability scan (pip-audit)
+        run: uv run pip-audit
+
       - name: Run tests with coverage
         run: uv run pytest --cov=app --cov-report=term-missing
 
@@ -50,6 +59,15 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run allowed install scripts (LavaMoat)
+        run: npm run allow-scripts
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Dependency vulnerability scan (npm audit)
+        run: npm audit --omit=dev --audit-level=high
 
       - name: Run tests
         run: npm test

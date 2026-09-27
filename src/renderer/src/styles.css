@@ -96,6 +96,15 @@ body {
   font-size: 13px;
 }
 
+.warning-banner {
+  background: #3a2f1c;
+  border: 1px solid #6b562a;
+  color: #ffcf7a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
 .app {
   padding: 24px 32px;
   display: flex;

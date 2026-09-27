@@ -1,7 +1,8 @@
 import asyncio
 import threading
 from collections import defaultdict
-from typing import Any, Callable, Protocol
+from collections.abc import Callable
+from typing import Any, Protocol
 
 from app.config import Settings
 

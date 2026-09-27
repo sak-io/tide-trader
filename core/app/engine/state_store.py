@@ -1,9 +1,9 @@
 import sqlite3
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterator
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS risk_state (
@@ -84,7 +84,7 @@ class StateStore:
                     state.day,
                     state.day_start_equity,
                     state.last_equity,
-                    datetime.now(timezone.utc).isoformat(),
+                    datetime.now(UTC).isoformat(),
                 ),
             )
             conn.commit()
