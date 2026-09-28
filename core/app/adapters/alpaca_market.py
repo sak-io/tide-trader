@@ -92,7 +92,30 @@ class AlpacaMarketDataClient:
             feed=DataFeed.IEX,
         )
         bar_set = self._bars.get_stock_bars(request)
+        return self._to_bars(bar_set.data.get(symbol, []))
 
+    def get_bars_multi(
+        self,
+        symbols: list[str],
+        timeframe: str = "1Day",
+        start: datetime | None = None,
+        end: datetime | None = None,
+        limit: int = 200,
+    ) -> dict[str, list[HistoricalBar]]:
+        normalized_symbols = [symbol.strip().upper() for symbol in symbols]
+        request = StockBarsRequest(
+            symbol_or_symbols=normalized_symbols,
+            timeframe=parse_timeframe(timeframe),
+            start=start or (datetime.now(UTC) - timedelta(days=30)),
+            end=end or datetime.now(UTC),
+            limit=limit,
+            feed=DataFeed.IEX,
+        )
+        bar_set = self._bars.get_stock_bars(request)
+        return {symbol: self._to_bars(bar_set.data.get(symbol, [])) for symbol in normalized_symbols}
+
+    @staticmethod
+    def _to_bars(raw_bars: list[Any]) -> list[HistoricalBar]:
         return [
             HistoricalBar(
                 timestamp=bar.timestamp,
@@ -102,7 +125,7 @@ class AlpacaMarketDataClient:
                 close=float(bar.close),
                 volume=float(bar.volume),
             )
-            for bar in bar_set.data.get(symbol, [])
+            for bar in raw_bars
         ]
 
     @staticmethod

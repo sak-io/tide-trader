@@ -1,6 +1,8 @@
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
+
+from app.models.domain import HistoricalBar
 
 
 class FakeTradingClient:
@@ -125,3 +127,67 @@ class FakeStreamClient:
 
     def stop(self) -> None:
         self.stopped = True
+
+
+class FakeAlpacaConnection:
+    """Duck-types app.security.alpaca_session.AlpacaConnection.get() for scan_loop
+    tests - avoids needing real credentials/adapters just to exercise the loop."""
+
+    def __init__(self, session: Any = None):
+        self._session = session
+
+    def get(self) -> Any:
+        return self._session
+
+    def set_session(self, session: Any) -> None:
+        self._session = session
+
+
+class FakeAnthropicClient:
+    """Stands in for app.engine.rationale.AnthropicClientProtocol in tests - no network."""
+
+    def __init__(self, response_text: str | None = "Looks like a solid setup.", should_raise: bool = False):
+        self.response_text = response_text
+        self.should_raise = should_raise
+        self.calls: list[dict[str, Any]] = []
+
+    async def create_message(self, *, model: str, max_tokens: int, messages: list[dict[str, Any]]) -> Any:
+        self.calls.append({"model": model, "max_tokens": max_tokens, "messages": messages})
+        if self.should_raise:
+            raise RuntimeError("simulated Anthropic API failure")
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text=self.response_text)])
+
+
+def _bar(timestamp: datetime, close: float, volume: float) -> HistoricalBar:
+    return HistoricalBar(timestamp=timestamp, open=close, high=close, low=close, close=close, volume=volume)
+
+
+def crossover_bars(
+    direction: str = "bullish",
+    count: int = 51,
+    flat_price: float | None = None,
+    jump_price: float | None = None,
+    flat_volume: float = 1000.0,
+    jump_volume: float = 3000.0,
+) -> list[HistoricalBar]:
+    """`count` daily bars, flat except the last one jumps - deterministically produces
+    an SMA(20)/SMA(50) crossover (golden cross for 'bullish', death cross for
+    'bearish') on the last bar, with a >=1.5x volume spike. See test_screener.py for
+    the by-hand math behind the exact composite score this produces (85.0)."""
+    if flat_price is None:
+        flat_price = 100.0 if direction == "bullish" else 200.0
+    if jump_price is None:
+        jump_price = 200.0 if direction == "bullish" else 100.0
+
+    start = datetime(2026, 1, 1, tzinfo=UTC)
+    bars = []
+    for i in range(count):
+        is_last = i == count - 1
+        bars.append(
+            _bar(
+                start + timedelta(days=i),
+                jump_price if is_last else flat_price,
+                jump_volume if is_last else flat_volume,
+            )
+        )
+    return bars

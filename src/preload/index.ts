@@ -12,6 +12,8 @@ import type {
   QuoteUpdate,
   SaveCredentialsResult,
   StreamStatus,
+  Suggestion,
+  SuggestionStatus,
   TradeUpdate
 } from '../shared/types'
 
@@ -33,6 +35,16 @@ const api = {
   getMovers: (top?: number): Promise<MarketMovers> => ipcRenderer.invoke('market:movers', top),
   getBars: (symbol: string, timeframe?: BarTimeframe, limit?: number): Promise<HistoricalBar[]> =>
     ipcRenderer.invoke('market:bars', symbol, timeframe, limit),
+
+  listSuggestions: (status?: SuggestionStatus | 'all'): Promise<Suggestion[]> =>
+    ipcRenderer.invoke('suggestions:list', status),
+  dismissSuggestion: (id: number): Promise<Suggestion> => ipcRenderer.invoke('suggestions:dismiss', id),
+  onNewSuggestion: (callback: (suggestions: Suggestion[]) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, suggestions: Suggestion[]): void =>
+      callback(suggestions)
+    ipcRenderer.on('suggestions:new', listener)
+    return () => ipcRenderer.removeListener('suggestions:new', listener)
+  },
 
   onStreamStatus: (callback: (status: StreamStatus) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, status: StreamStatus): void =>

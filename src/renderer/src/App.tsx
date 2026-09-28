@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import CredentialsForm from './components/CredentialsForm'
 import SearchBar from './components/SearchBar'
 import DiscoverPanel from './components/DiscoverPanel'
+import SuggestionsPanel from './components/SuggestionsPanel'
 import SymbolDetail from './components/SymbolDetail'
 import type { AssetSummary, StreamStatus } from '../../shared/types'
 
@@ -90,6 +91,8 @@ export default function App(): JSX.Element {
           </div>
         )}
       </div>
+
+      <SuggestionsPanel />
     </div>
   )
 }

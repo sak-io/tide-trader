@@ -121,3 +121,65 @@ class AlpacaConnectRequest(BaseModel):
 
 class AlpacaStatus(BaseModel):
     connected: bool
+
+
+class SignalSource(StrEnum):
+    alpaca = "alpaca"
+    watchlist = "watchlist"
+
+
+class SignalDirection(StrEnum):
+    bullish = "bullish"
+    bearish = "bearish"
+
+
+class IndicatorSnapshot(BaseModel):
+    sma_fast: float
+    sma_slow: float
+    rsi14: float
+    volume_ratio: float
+
+
+class Signal(BaseModel):
+    symbol: str
+    direction: SignalDirection
+    price: float
+    score: float
+    indicators: IndicatorSnapshot
+    triggered_rules: list[str]
+    sources: list[SignalSource]
+    generated_at: datetime
+
+
+class SuggestionStatus(StrEnum):
+    pending = "pending"
+    dismissed = "dismissed"
+
+
+class Suggestion(BaseModel):
+    id: int
+    symbol: str
+    direction: SignalDirection
+    price: float
+    score: float
+    indicators: IndicatorSnapshot
+    triggered_rules: list[str]
+    sources: list[SignalSource]
+    rationale: str | None = None
+    status: SuggestionStatus
+    generated_at: datetime
+    updated_at: datetime
+
+
+class WatchlistItem(BaseModel):
+    symbol: str
+    added_at: datetime
+
+
+class WatchlistAddRequest(BaseModel):
+    symbol: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def normalize(self) -> "WatchlistAddRequest":
+        self.symbol = self.symbol.strip().upper()
+        return self

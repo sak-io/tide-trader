@@ -4,6 +4,8 @@ from app.adapters.alpaca_data import MarketDataHub
 from app.adapters.alpaca_market import AlpacaMarketDataClient
 from app.adapters.alpaca_trade import AlpacaTradeAdapter
 from app.engine.risk_manager import RiskManager
+from app.engine.suggestion_store import SuggestionStore
+from app.engine.watchlist_store import WatchlistStore
 
 _NOT_CONNECTED_DETAIL = "Alpaca account not connected. Connect your Alpaca account to continue."
 
@@ -28,3 +30,11 @@ def get_market_data_client(request: Request) -> AlpacaMarketDataClient:
     if session is None:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_NOT_CONNECTED_DETAIL)
     return session.market_data_client
+
+
+def get_watchlist_store(request: Request) -> WatchlistStore:
+    return request.app.state.watchlist_store
+
+
+def get_suggestion_store(request: Request) -> SuggestionStore:
+    return request.app.state.suggestion_store

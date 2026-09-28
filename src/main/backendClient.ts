@@ -9,7 +9,10 @@ import type {
   HistoricalBar,
   MarketMovers,
   MoverTicker,
-  SaveCredentialsResult
+  SaveCredentialsResult,
+  Suggestion,
+  SuggestionIndicators,
+  SuggestionStatus
 } from '../shared/types'
 
 const BACKEND_BASE_URL = 'http://127.0.0.1:8000'
@@ -130,4 +133,62 @@ export async function getAlpacaStatus(): Promise<AlpacaStatus> {
 
 export async function disconnectAlpaca(): Promise<void> {
   await backendRequest<void>('/api/v1/alpaca/disconnect', { method: 'DELETE' })
+}
+
+interface RawSuggestionIndicators {
+  sma_fast: number
+  sma_slow: number
+  rsi14: number
+  volume_ratio: number
+}
+
+interface RawSuggestion {
+  id: number
+  symbol: string
+  direction: Suggestion['direction']
+  price: number
+  score: number
+  indicators: RawSuggestionIndicators
+  triggered_rules: string[]
+  sources: Suggestion['sources']
+  rationale: string | null
+  status: SuggestionStatus
+  generated_at: string
+  updated_at: string
+}
+
+function toSuggestionIndicators(raw: RawSuggestionIndicators): SuggestionIndicators {
+  return {
+    smaFast: raw.sma_fast,
+    smaSlow: raw.sma_slow,
+    rsi14: raw.rsi14,
+    volumeRatio: raw.volume_ratio
+  }
+}
+
+function toSuggestion(raw: RawSuggestion): Suggestion {
+  return {
+    id: raw.id,
+    symbol: raw.symbol,
+    direction: raw.direction,
+    price: raw.price,
+    score: raw.score,
+    indicators: toSuggestionIndicators(raw.indicators),
+    triggeredRules: raw.triggered_rules,
+    sources: raw.sources,
+    rationale: raw.rationale,
+    status: raw.status,
+    generatedAt: raw.generated_at,
+    updatedAt: raw.updated_at
+  }
+}
+
+export async function fetchSuggestions(status: SuggestionStatus | 'all' = 'pending'): Promise<Suggestion[]> {
+  const raw = await backendRequest<RawSuggestion[]>(`/api/v1/suggestions?status=${status}`)
+  return raw.map(toSuggestion)
+}
+
+export async function dismissSuggestion(id: number): Promise<Suggestion> {
+  const raw = await backendRequest<RawSuggestion>(`/api/v1/suggestions/${id}/dismiss`, { method: 'POST' })
+  return toSuggestion(raw)
 }

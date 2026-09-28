@@ -86,3 +86,31 @@ export interface HistoricalBar {
 }
 
 export type BarTimeframe = '1Min' | '5Min' | '15Min' | '1Hour' | '1Day'
+
+export type SignalSource = 'alpaca' | 'watchlist'
+
+export type SignalDirection = 'bullish' | 'bearish'
+
+export type SuggestionStatus = 'pending' | 'dismissed'
+
+export interface SuggestionIndicators {
+  smaFast: number
+  smaSlow: number
+  rsi14: number
+  volumeRatio: number
+}
+
+export interface Suggestion {
+  id: number
+  symbol: string
+  direction: SignalDirection
+  price: number
+  score: number
+  indicators: SuggestionIndicators
+  triggeredRules: string[]
+  sources: SignalSource[]
+  rationale: string | null
+  status: SuggestionStatus
+  generatedAt: string
+  updatedAt: string
+}

@@ -8,6 +8,13 @@ import tempfile
 os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(), "lifespan_state.db"))
 os.environ.setdefault("TIDE_TRADER_ACCESS_TOKEN_PATH", os.path.join(tempfile.mkdtemp(), "access-token"))
 os.environ.setdefault("ALLOWED_ORIGINS", "")
+# The real app.main.app singleton (built below) runs its real lifespan() on every test
+# that does TestClient(app), across many test files. Without this, the suggestion scan
+# loop would spin up as a real asyncio background task racing every test's teardown -
+# for a feature most of those tests don't touch at all. Dedicated tests that need the
+# scan loop enabled build their own Settings(enable_suggestion_scanner=True) directly,
+# bypassing this default - see test_main_lifespan.py.
+os.environ.setdefault("ENABLE_SUGGESTION_SCANNER", "false")
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +23,9 @@ from app.dependencies import (
     get_market_data_client,
     get_market_data_hub,
     get_risk_manager,
+    get_suggestion_store,
     get_trade_adapter,
+    get_watchlist_store,
 )
 from app.engine.risk_manager import RiskManager
 from app.engine.state_store import StateStore
@@ -90,6 +99,42 @@ def stream_client():
 
     with TestClient(app) as client:
         yield client, hub
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def suggestion_store(tmp_path):
+    from app.engine.suggestion_store import SuggestionStore
+
+    return SuggestionStore(tmp_path / "suggestions.db")
+
+
+@pytest.fixture
+def watchlist_store(tmp_path):
+    from app.engine.watchlist_store import WatchlistStore
+
+    return WatchlistStore(tmp_path / "watchlist.db")
+
+
+@pytest.fixture
+def suggestions_api_client(suggestion_store):
+    app.dependency_overrides[get_suggestion_store] = lambda: suggestion_store
+    app.dependency_overrides[require_access_token] = lambda: None
+
+    with TestClient(app) as client:
+        yield client, suggestion_store
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def watchlist_api_client(watchlist_store):
+    app.dependency_overrides[get_watchlist_store] = lambda: watchlist_store
+    app.dependency_overrides[require_access_token] = lambda: None
+
+    with TestClient(app) as client:
+        yield client, watchlist_store
 
     app.dependency_overrides.clear()
 

@@ -496,3 +496,86 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* Suggestions panel */
+
+.suggestions-panel {
+  background: #171a21;
+  border: 1px solid #2c313d;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.suggestions-panel h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.suggestions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.suggestion-row {
+  border: 1px solid #2c313d;
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suggestion-row-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.suggestion-row-header .symbol {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.suggestion-direction {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.suggestion-direction-bullish {
+  color: #34d399;
+}
+
+.suggestion-direction-bearish {
+  color: #f87171;
+}
+
+.suggestion-price,
+.suggestion-score {
+  color: #b7bcc7;
+  font-variant-numeric: tabular-nums;
+}
+
+.suggestion-sources {
+  display: flex;
+  gap: 6px;
+}
+
+.suggestion-sources .status-pill {
+  padding: 3px 10px;
+  font-size: 11px;
+}
+
+.suggestion-rationale {
+  color: #b7bcc7;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
