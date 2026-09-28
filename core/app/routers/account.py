@@ -3,8 +3,9 @@ from fastapi import APIRouter, Depends
 from app.adapters.alpaca_trade import AlpacaTradeAdapter
 from app.dependencies import get_trade_adapter
 from app.models.domain import AccountSummary, Position
+from app.security.access_token import require_access_token
 
-router = APIRouter(prefix="/api/v1", tags=["account"])
+router = APIRouter(prefix="/api/v1", tags=["account"], dependencies=[Depends(require_access_token)])
 
 
 @router.get("/account", response_model=AccountSummary)

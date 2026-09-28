@@ -1,10 +1,10 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   ActiveTicker,
+  AlpacaStatus,
   AssetSummary,
   BarTimeframe,
   BarUpdate,
-  ConfigStatus,
   Credentials,
   HistoricalBar,
   LatestSnapshot,
@@ -16,8 +16,7 @@ import type {
 } from '../shared/types'
 
 const api = {
-  getConfigStatus: (): Promise<ConfigStatus> => ipcRenderer.invoke('alpaca:get-config-status'),
-  getEncryptionStatus: (): Promise<boolean> => ipcRenderer.invoke('alpaca:get-encryption-status'),
+  getStatus: (): Promise<AlpacaStatus> => ipcRenderer.invoke('alpaca:get-status'),
   saveCredentials: (credentials: Credentials): Promise<SaveCredentialsResult> =>
     ipcRenderer.invoke('alpaca:save-credentials', credentials),
   clearCredentials: (): Promise<void> => ipcRenderer.invoke('alpaca:clear-credentials'),

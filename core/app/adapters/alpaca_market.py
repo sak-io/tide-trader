@@ -7,7 +7,6 @@ from alpaca.data.historical.stock import StockHistoricalDataClient
 from alpaca.data.requests import MarketMoversRequest, MostActivesRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
-from app.config import Settings
 from app.models.domain import ActiveTicker, HistoricalBar, MarketMovers, MoverTicker
 
 _TIMEFRAME_PRESETS: dict[str, TimeFrame] = {
@@ -48,14 +47,14 @@ class AlpacaMarketDataClient:
         self._bars = bars_client
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "AlpacaMarketDataClient":
+    def from_credentials(cls, api_key_id: str, secret_key: str) -> "AlpacaMarketDataClient":
         screener = ScreenerClient(
-            api_key=settings.alpaca_api_key_id,
-            secret_key=settings.alpaca_secret_key,
+            api_key=api_key_id,
+            secret_key=secret_key,
         )
         bars = StockHistoricalDataClient(
-            api_key=settings.alpaca_api_key_id,
-            secret_key=settings.alpaca_secret_key,
+            api_key=api_key_id,
+            secret_key=secret_key,
         )
         return cls(screener, bars)
 

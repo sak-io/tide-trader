@@ -6,8 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    alpaca_api_key_id: str = ""
-    alpaca_secret_key: str = ""
     alpaca_paper: bool = True
 
     max_position_dollars: float = 5000.0

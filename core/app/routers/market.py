@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.adapters.alpaca_market import AlpacaMarketDataClient
 from app.dependencies import get_market_data_client
 from app.models.domain import ActiveTicker, HistoricalBar, MarketMovers
+from app.security.access_token import require_access_token
 
-router = APIRouter(prefix="/api/v1/market", tags=["market"])
+router = APIRouter(prefix="/api/v1/market", tags=["market"], dependencies=[Depends(require_access_token)])
 
 
 @router.get("/most-active", response_model=list[ActiveTicker])

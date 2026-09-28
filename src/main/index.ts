@@ -1,10 +1,17 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
 import { join } from 'node:path'
-import { clearCredentials, isEncryptionAvailable, loadCredentials, saveCredentials } from './config'
-import { getLatestSnapshot, searchAssets, validateCredentials } from './alpacaRest'
-import { fetchBars, fetchMostActive, fetchMovers } from './backendClient'
+import * as alpacaCredentialCache from './alpacaCredentialCache'
+import { getLatestSnapshot, searchAssets } from './alpacaRest'
+import {
+  connectAlpaca,
+  disconnectAlpaca,
+  fetchBars,
+  fetchMostActive,
+  fetchMovers,
+  getAlpacaStatus
+} from './backendClient'
 import { AlpacaStream } from './alpacaStream'
-import type { BarTimeframe, ConfigStatus, Credentials, SaveCredentialsResult } from '../shared/types'
+import type { AlpacaStatus, BarTimeframe, Credentials, SaveCredentialsResult } from '../shared/types'
 
 const stream = new AlpacaStream()
 let mainWindow: BrowserWindow | null = null
@@ -44,32 +51,44 @@ function forwardStreamEvents(): void {
 }
 
 function registerIpcHandlers(): void {
-  ipcMain.handle('alpaca:get-config-status', (): ConfigStatus => {
-    const creds = loadCredentials()
-    return creds ? { configured: true, keyId: creds.keyId } : { configured: false }
+  ipcMain.handle('alpaca:get-status', async (): Promise<AlpacaStatus> => {
+    try {
+      return await getAlpacaStatus()
+    } catch {
+      // Most commonly: the backend isn't running yet, or hasn't finished starting up.
+      // Treat that the same as "not connected" here - CredentialsForm's own submit
+      // path surfaces the specific "is the backend running?" error instead.
+      return { connected: false }
+    }
   })
 
   ipcMain.handle(
     'alpaca:save-credentials',
     async (_event, credentials: Credentials): Promise<SaveCredentialsResult> => {
-      const result = await validateCredentials(credentials)
-      if (!result.valid) return { success: false, error: result.error }
+      const result = await connectAlpaca(credentials)
+      if (!result.success) return result
 
-      saveCredentials(credentials)
+      // The backend now holds this credential in its own memory for order/account
+      // calls. Electron's direct-to-Alpaca streaming path is a separate process with
+      // no way to read it back from the backend (by design - no "reveal" shortcut
+      // between the two), so it needs its own in-memory copy too.
+      alpacaCredentialCache.set(credentials)
       stream.connect(credentials)
       return { success: true }
     }
   )
 
-  ipcMain.handle('alpaca:get-encryption-status', (): boolean => isEncryptionAvailable())
-
-  ipcMain.handle('alpaca:clear-credentials', () => {
+  ipcMain.handle('alpaca:clear-credentials', async () => {
     stream.disconnect()
-    clearCredentials()
+    alpacaCredentialCache.clear()
+    await disconnectAlpaca().catch(() => {
+      // Best-effort: if the backend is already unreachable, there's nothing to
+      // disconnect there anyway - the local, in-memory state is cleared regardless.
+    })
   })
 
   ipcMain.handle('alpaca:search-assets', async (_event, query: string) => {
-    const creds = loadCredentials()
+    const creds = alpacaCredentialCache.get()
     if (!creds) return []
     return searchAssets(creds, query)
   })
@@ -79,7 +98,7 @@ function registerIpcHandlers(): void {
   })
 
   ipcMain.handle('alpaca:get-latest', async (_event, symbol: string) => {
-    const creds = loadCredentials()
+    const creds = alpacaCredentialCache.get()
     if (!creds) return {}
     try {
       return await getLatestSnapshot(creds, symbol)
@@ -106,8 +125,11 @@ app.whenReady().then(() => {
   forwardStreamEvents()
   createWindow()
 
-  const creds = loadCredentials()
-  if (creds) stream.connect(creds)
+  // Note: no auto-reconnect of the direct-to-Alpaca stream here. Credentials are
+  // in-memory only (alpacaCredentialCache starts empty every launch), so even if the
+  // backend still holds a live connection from before this Electron process started,
+  // the realtime stream needs the user to go through CredentialsForm again to get a
+  // fresh copy of the secret - see docs/ARCHITECTURE.md.
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

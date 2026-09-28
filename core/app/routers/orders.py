@@ -10,8 +10,9 @@ from app.models.domain import (
     OrderRequest,
     OrderResponse,
 )
+from app.security.access_token import require_access_token
 
-router = APIRouter(prefix="/api/v1", tags=["orders"])
+router = APIRouter(prefix="/api/v1", tags=["orders"], dependencies=[Depends(require_access_token)])
 
 
 @router.post("/orders", response_model=OrderResponse, status_code=status.HTTP_201_CREATED)

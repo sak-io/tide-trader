@@ -60,14 +60,19 @@ together and why they're built this way.
 ```bash
 cd core
 uv sync
-cp .env.example .env   # then edit .env and paste in your own API key/secret
+cp .env.example .env   # optional - only risk limits and mode, no API keys go here
 uv run python -m app.main
 ```
 
 The API listens on `http://127.0.0.1:8000` by default. It's intentionally
 bound to localhost only — this service can place real (paper) orders and
 isn't meant to be reachable from anything but the desktop app on the same
-machine.
+machine. On first run it generates a shared access token at
+`~/.tide-trader/access-token` (owner-read-only) that the desktop app reads to
+authenticate its requests — no login system, just a check that the caller is
+this laptop's own Electron app. Your Alpaca API Key ID/Secret are **not**
+configured via `.env` — you connect them at runtime (see below); the backend
+holds them in memory only, for as long as it keeps running.
 
 Run the backend's test suite:
 
@@ -88,11 +93,12 @@ npm run dev
 ```
 
 On first launch you'll be asked for your Alpaca Paper API Key ID and Secret.
-They're validated against Alpaca before being saved, then stored **encrypted**
-via Electron's `safeStorage` (backed by the macOS Keychain) — never as a
-plaintext file, and never committed to this repo. If OS-level encryption isn't
-available on your machine, the app warns you and falls back to a plaintext
-file instead of silently claiming otherwise.
+They're sent to the Python backend, which validates them against Alpaca and,
+if valid, holds them **in memory only** for as long as it keeps running —
+never written to disk, a keyring, or anywhere else persistent. The desktop
+app keeps its own in-memory copy too (for its separate direct-to-Alpaca
+realtime streaming path). Restarting either process clears its copy and
+requires reconnecting — there's no "reveal" shortcut between the two.
 
 ### Other useful commands
 
@@ -127,7 +133,7 @@ machine other than the one you're clicking around on:
 
 ```bash
 cd core
-cp .env.example .env   # fill in your own keys
+cp .env.example .env   # optional - risk limits and mode; Alpaca keys are connected at runtime
 docker compose up --build
 ```
 
@@ -179,8 +185,12 @@ tide-trader/
 
 ## Security notes
 
-- API keys are never written into this repository. `core/.env` and the
-  Electron app's local credential store are both gitignored / outside the
-  repo entirely.
+- Your Alpaca API Key ID/Secret are never written to disk anywhere — not in
+  this repo, not in `core/.env`, not in a local file or keyring. Both the
+  backend and the desktop app hold them in memory only, for the lifetime of
+  each process; restarting either one clears its copy.
+- The backend requires a shared access token (generated on first run at
+  `~/.tide-trader/access-token`) on every request except the WebSocket stream,
+  so only this laptop's own Electron app can call it.
 - The paper trading account this connects to cannot place live orders or move
   real money.

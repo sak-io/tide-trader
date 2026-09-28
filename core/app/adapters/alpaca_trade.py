@@ -8,7 +8,6 @@ from alpaca.trading.enums import OrderSide as AlpacaOrderSide
 from alpaca.trading.enums import TimeInForce
 from alpaca.trading.requests import LimitOrderRequest, MarketOrderRequest
 
-from app.config import Settings
 from app.models.domain import (
     AccountSummary,
     OrderRequest,
@@ -59,15 +58,15 @@ class AlpacaTradeAdapter:
         self._market_data_client = market_data_client
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "AlpacaTradeAdapter":
+    def from_credentials(cls, api_key_id: str, secret_key: str, paper: bool) -> "AlpacaTradeAdapter":
         client = TradingClient(
-            api_key=settings.alpaca_api_key_id,
-            secret_key=settings.alpaca_secret_key,
-            paper=settings.alpaca_paper,
+            api_key=api_key_id,
+            secret_key=secret_key,
+            paper=paper,
         )
         market_data_client = StockHistoricalDataClient(
-            api_key=settings.alpaca_api_key_id,
-            secret_key=settings.alpaca_secret_key,
+            api_key=api_key_id,
+            secret_key=secret_key,
         )
         return cls(client, market_data_client)
 

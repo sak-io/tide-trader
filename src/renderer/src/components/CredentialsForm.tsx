@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useState } from 'react'
 
 interface Props {
   onSaved: (keyId: string) => void
@@ -9,11 +9,6 @@ export default function CredentialsForm({ onSaved }: Props): JSX.Element {
   const [secret, setSecret] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [encryptionAvailable, setEncryptionAvailable] = useState(true)
-
-  useEffect(() => {
-    window.alpaca.getEncryptionStatus().then(setEncryptionAvailable)
-  }, [])
 
   async function handleSubmit(e: FormEvent): Promise<void> {
     e.preventDefault()
@@ -35,17 +30,11 @@ export default function CredentialsForm({ onSaved }: Props): JSX.Element {
       <form className="credentials-card" onSubmit={handleSubmit}>
         <h1>Connect your Alpaca Paper account</h1>
         <p className="subtitle">
-          Generate a Paper Trading API key from your Alpaca dashboard, then paste it here. Keys
-          are {encryptionAvailable ? 'stored encrypted, ' : 'stored '}locally on this Mac, and are
-          only ever sent to Alpaca.
+          Generate a Paper Trading API key from your Alpaca dashboard, then paste it here. Your keys
+          are held in memory only for as long as the app is running - never written to disk - and
+          are only ever sent to Alpaca. You&apos;ll need to reconnect the next time you restart the
+          app.
         </p>
-
-        {!encryptionAvailable && (
-          <div className="warning-banner">
-            This system&apos;s secure storage isn&apos;t available, so your keys will be saved in
-            plain text on disk instead of encrypted.
-          </div>
-        )}
 
         <label>
           API Key ID

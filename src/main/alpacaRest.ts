@@ -10,21 +10,6 @@ function authHeaders(credentials: Credentials): Record<string, string> {
   }
 }
 
-export async function validateCredentials(
-  credentials: Credentials
-): Promise<{ valid: boolean; error?: string }> {
-  try {
-    const res = await fetch(`${TRADING_BASE}/account`, { headers: authHeaders(credentials) })
-    if (res.ok) return { valid: true }
-    if (res.status === 401 || res.status === 403) {
-      return { valid: false, error: 'Alpaca rejected these keys (unauthorized).' }
-    }
-    return { valid: false, error: `Alpaca returned HTTP ${res.status}.` }
-  } catch (err) {
-    return { valid: false, error: err instanceof Error ? err.message : 'Network error' }
-  }
-}
-
 let assetCache: AssetSummary[] | null = null
 let assetCacheCredentialsKey: string | null = null
 

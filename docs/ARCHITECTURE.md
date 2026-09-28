@@ -71,15 +71,21 @@ that need materializes, this is the natural next thing to unify.
 ### Electron app (`src/`)
 
 - **`main/`** — the only place Alpaca credentials and the API secret ever
-  live in plaintext memory. Handles:
-  - `config.ts` — credential storage via Electron's `safeStorage` (macOS
-    Keychain-backed encryption at rest).
+  live in plaintext, in memory only, never on disk. Handles:
+  - `alpacaCredentialCache.ts` — a module-level, in-memory-only credential
+    cache (no file I/O at all) for the direct-to-Alpaca streaming path below.
+    Cleared on Electron restart; there is no persistence layer to clear.
   - `alpacaRest.ts` / `alpacaStream.ts` — direct REST search + WebSocket
     streaming client for realtime trades/quotes/bars.
-  - `backendClient.ts` — a thin fetch wrapper for the Python backend's
-    market-research endpoints.
+  - `backendClient.ts` — a fetch wrapper for the Python backend's
+    market-research and Alpaca-connection endpoints, attaching the shared
+    access token (see Security model) to every request.
   - `index.ts` — IPC handler registration, wiring both of the above to the
-    renderer.
+    renderer. The `alpaca:save-credentials` handler calls the backend's
+    `POST /api/v1/alpaca/connect` to validate + connect, then mirrors the
+    same credential into `alpacaCredentialCache` purely so the direct
+    streaming path has its own copy — the backend never hands the secret
+    back to Electron.
 - **`preload/`** — the only bridge between renderer and main, via
   `contextBridge`. The renderer never gets raw `ipcRenderer`/Node access.
 - **`renderer/`** — React UI: `DiscoverPanel` (screeners), `SymbolDetail` +
@@ -102,18 +108,52 @@ that need materializes, this is the natural next thing to unify.
   `state_store.py` (the SQLite persistence underneath it). Deliberately
   separated: the risk manager holds policy, the state store holds
   persistence, and neither needs to know the other's internals.
+- **`security/`** — `access_token.py` (the shared-secret check protecting
+  every REST route except `/ws/live`) and `alpaca_session.py` (`AlpacaConnection`,
+  the single in-memory slot holding the Alpaca Key ID/Secret and the
+  adapters built from them, populated by `POST /api/v1/alpaca/connect` and
+  wiped on process restart or `DELETE /api/v1/alpaca/disconnect`).
 - **`routers/`** — thin FastAPI route handlers; all real logic lives in
-  adapters/engine so it's unit-testable without spinning up the app.
-- **`main.py`** — lifespan wiring: constructs every adapter/engine instance
-  once at startup and hangs them off `app.state`, rather than re-constructing
-  per-request.
+  adapters/engine/security so it's unit-testable without spinning up the app.
+  `alpaca_connection.py` is the one exception to "no logic in routers": it
+  probes a candidate credential against real Alpaca before committing it.
+- **`main.py`** — lifespan wiring: loads/creates the access token, constructs
+  the (initially empty) `AlpacaConnection` and the risk manager once at
+  startup and hangs them off `app.state`, rather than re-constructing
+  per-request. Unlike before, no Alpaca adapter is built here — that only
+  happens once a user connects at runtime.
 
 ## Security model
 
-- **Credentials never touch git.** `core/.env` is gitignored; only
-  `.env.example` (placeholders) is committed. The Electron app's credential
-  store lives in `~/Library/Application Support/tide-trader/`, entirely
-  outside this repository.
+This app is single-tenant per laptop: whoever runs a given backend process is
+the only person it ever serves, so there is no login/account system. What it
+does guard against is a *different* local process poking at an API that can
+place real (paper) trades, and against ever writing the Alpaca secret
+somewhere it could leak from.
+
+- **The Alpaca Key ID/Secret are never persisted anywhere** — not encrypted,
+  not in a keyring, not in a file, not in a database. Both the backend
+  (`AlpacaConnection`, in `app/security/alpaca_session.py`) and the Electron
+  main process (`alpacaCredentialCache.ts`) hold it only in that process's own
+  memory, for as long as that process keeps running. A backend restart or an
+  Electron restart wipes its own copy and requires reconnecting through
+  `CredentialsForm` again — there is deliberately no "reveal" endpoint that
+  would let one process hand the raw secret back to the other.
+- **A shared access token gates the REST API.** On first run the backend
+  generates `secrets.token_urlsafe(32)` and writes it to
+  `~/.tide-trader/access-token` (`0o600`). Electron reads the same
+  well-known path and sends it as `Authorization: Bearer <token>` on every
+  request. This is not a user-identity system — it's a single shared secret
+  answering "is the caller our own Electron app," so no other local process
+  can silently call an API that can move money (even paper money) or read
+  account state. `/ws/live` is deliberately excluded (see `routers/stream.py`)
+  since a bearer header doesn't map onto a WebSocket handshake, and it only
+  fans out already-public market ticks.
+- **`core/.env` never carries the Alpaca secret.** It only configures
+  `ALPACA_PAPER`, risk limits, and network/DB settings; `.env.example`
+  (placeholders only) is the one committed. Credentials are connected at
+  runtime via `POST /api/v1/alpaca/connect`, never read from environment
+  variables.
 - **The renderer never sees the API secret.** Both the direct-Alpaca path and
   the Python-backend path are reached only through the main process; the
   contextBridge API only ever returns already-fetched data.

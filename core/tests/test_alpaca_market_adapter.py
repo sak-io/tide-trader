@@ -87,3 +87,9 @@ def test_parse_timeframe_supports_known_presets():
 def test_parse_timeframe_rejects_unsupported_value():
     with pytest.raises(ValueError, match="Unsupported timeframe"):
         parse_timeframe("3Weeks")
+
+
+def test_from_credentials_constructs_real_clients_without_hitting_network():
+    client = AlpacaMarketDataClient.from_credentials("key", "secret")
+
+    assert isinstance(client, AlpacaMarketDataClient)

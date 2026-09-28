@@ -43,9 +43,8 @@ export type StreamStatus =
   | 'auth_failed'
   | 'error'
 
-export interface ConfigStatus {
-  configured: boolean
-  keyId?: string
+export interface AlpacaStatus {
+  connected: boolean
 }
 
 export interface SaveCredentialsResult {

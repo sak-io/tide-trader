@@ -6,12 +6,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.adapters.alpaca_data import MarketDataHub, build_stream_runner
-from app.adapters.alpaca_market import AlpacaMarketDataClient
-from app.adapters.alpaca_trade import AlpacaTradeAdapter
 from app.config import get_settings
 from app.engine.risk_manager import RiskManager
 from app.engine.state_store import StateStore
-from app.routers import account, market, orders, stream
+from app.routers import account, alpaca_connection, market, orders, stream
+from app.security.access_token import load_or_create_access_token
+from app.security.alpaca_session import AlpacaConnection
 
 
 @asynccontextmanager
@@ -19,9 +19,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
 
     app.state.settings = settings
-    has_credentials = bool(settings.alpaca_api_key_id and settings.alpaca_secret_key)
-    app.state.trade_adapter = AlpacaTradeAdapter.from_settings(settings) if has_credentials else None
-    app.state.market_data_client = AlpacaMarketDataClient.from_settings(settings) if has_credentials else None
+    app.state.access_token = load_or_create_access_token()
+    app.state.alpaca_connection = AlpacaConnection()
 
     loop = asyncio.get_running_loop()
     app.state.market_data_hub = MarketDataHub(loop=loop)
@@ -59,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(orders.router)
     app.include_router(account.router)
     app.include_router(market.router)
+    app.include_router(alpaca_connection.router)
     app.include_router(stream.router)
 
     return app

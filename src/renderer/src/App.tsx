@@ -22,10 +22,10 @@ export default function App(): JSX.Element {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null)
 
   useEffect(() => {
-    window.alpaca.getConfigStatus().then((status) => {
-      setConfigured(status.configured)
+    window.alpaca.getStatus().then((status) => {
+      setConfigured(status.connected)
       setCheckingConfig(false)
-      if (status.configured) {
+      if (status.connected) {
         setSelectedSymbol(localStorage.getItem(SELECTED_SYMBOL_STORAGE_KEY))
       }
     })

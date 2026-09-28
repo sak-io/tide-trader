@@ -220,17 +220,12 @@ def test_stream_runner_start_and_stop_manage_background_thread():
     assert fake_client.stopped is True
 
 
-def test_build_stream_runner_returns_none_without_credentials():
-    settings = Settings(alpaca_api_key_id="", alpaca_secret_key="")
+def test_build_stream_runner_always_returns_none():
+    """Live streaming credentials now come from the in-memory AlpacaConnection,
+    populated after startup via POST /api/v1/alpaca/connect - Settings no longer
+    carries any Alpaca credential to build a stream client from at lifespan
+    startup, so this is always None (see build_stream_runner's docstring)."""
+    settings = Settings()
     hub = MarketDataHub()
 
     assert build_stream_runner(settings, hub) is None
-
-
-def test_build_stream_runner_builds_runner_with_credentials():
-    settings = Settings(alpaca_api_key_id="key", alpaca_secret_key="secret")
-    hub = MarketDataHub()
-
-    runner = build_stream_runner(settings, hub)
-
-    assert isinstance(runner, AlpacaStreamRunner)

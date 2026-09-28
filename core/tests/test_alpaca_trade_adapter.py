@@ -3,7 +3,6 @@ from types import SimpleNamespace
 import pytest
 
 from app.adapters.alpaca_trade import AlpacaTradeAdapter
-from app.config import Settings
 from app.models.domain import OrderRequest, OrderSide, OrderStatus, OrderType
 from tests.fakes import FakeMarketDataClient, FakeTradingClient
 
@@ -98,9 +97,7 @@ def test_get_positions_empty_when_no_positions():
     assert adapter.get_positions() == []
 
 
-def test_from_settings_constructs_real_clients_without_hitting_network():
-    settings = Settings(alpaca_api_key_id="key", alpaca_secret_key="secret", alpaca_paper=True)
-
-    adapter = AlpacaTradeAdapter.from_settings(settings)
+def test_from_credentials_constructs_real_clients_without_hitting_network():
+    adapter = AlpacaTradeAdapter.from_credentials("key", "secret", paper=True)
 
     assert isinstance(adapter, AlpacaTradeAdapter)

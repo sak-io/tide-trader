@@ -5,6 +5,10 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from app.adapters.alpaca_data import MarketDataHub
 from app.dependencies import get_market_data_hub
 
+# Deliberately NOT protected by require_access_token (unlike orders/account/market):
+# a bearer `Authorization` header doesn't map cleanly onto a WebSocket handshake, and
+# this endpoint only ever fans out already-public market ticks - not a security gap,
+# a conscious scope decision for this phase.
 router = APIRouter(tags=["stream"])
 
 

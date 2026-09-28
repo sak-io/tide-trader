@@ -112,3 +112,12 @@ class HistoricalBar(BaseModel):
     low: float
     close: float
     volume: float
+
+
+class AlpacaConnectRequest(BaseModel):
+    api_key_id: str = Field(min_length=1)
+    secret_key: str = Field(min_length=1)
+
+
+class AlpacaStatus(BaseModel):
+    connected: bool

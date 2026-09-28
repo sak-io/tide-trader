@@ -1,0 +1,56 @@
+"""A lightweight shared-secret check so no other local process can silently call this
+API - it can place real (paper) trades. This is NOT a user identity/auth system: there
+is exactly one token, shared between this backend and the Electron app that runs
+alongside it on the same laptop, written to a well-known local path so neither side
+needs a login/hand-off endpoint to learn it.
+"""
+
+import os
+import secrets
+from pathlib import Path
+
+from fastapi import HTTPException, Request, status
+
+# Overridable so tests (and anything else that wants isolation) never read or write
+# the real per-machine token file at ~/.tide-trader/access-token.
+_PATH_OVERRIDE_ENV_VAR = "TIDE_TRADER_ACCESS_TOKEN_PATH"
+_DEFAULT_PATH = Path.home() / ".tide-trader" / "access-token"
+
+
+def _default_token_path() -> Path:
+    override = os.environ.get(_PATH_OVERRIDE_ENV_VAR)
+    return Path(override) if override else _DEFAULT_PATH
+
+
+def load_or_create_access_token(path: Path | str | None = None) -> str:
+    """Return the shared access token at `path`, generating and persisting one on first run.
+
+    The token is written with 0o600 permissions (owner read/write only) since anyone
+    who can read it can call every trading endpoint this backend exposes.
+    """
+    token_path = Path(path) if path is not None else _default_token_path()
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if token_path.exists():
+        return token_path.read_text(encoding="utf-8").strip()
+
+    token = secrets.token_urlsafe(32)
+    token_path.write_text(token, encoding="utf-8")
+    os.chmod(token_path, 0o600)
+    return token
+
+
+def require_access_token(request: Request) -> None:
+    """FastAPI dependency: 401s unless `Authorization: Bearer <token>` matches.
+
+    Deliberately not applied to /ws/live (see routers/stream.py) - a bearer header
+    doesn't map cleanly onto a WebSocket handshake.
+    """
+    expected = request.app.state.access_token
+    scheme, _, token = request.headers.get("Authorization", "").partition(" ")
+
+    if scheme != "Bearer" or not token or not secrets.compare_digest(token, expected):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid access token.",
+        )

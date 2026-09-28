@@ -2,11 +2,11 @@ import os
 import tempfile
 
 # Must run before `app.config`/`app.main` are imported by any test module, so the
-# real Settings() picked up during FastAPI's lifespan startup never touches real
-# Alpaca credentials or writes a stray SQLite file into the repo.
+# real Settings() picked up during FastAPI's lifespan startup never writes a stray
+# SQLite file into the repo, and load_or_create_access_token() never touches this
+# machine's real ~/.tide-trader/access-token.
 os.environ.setdefault("DB_PATH", os.path.join(tempfile.mkdtemp(), "lifespan_state.db"))
-os.environ.setdefault("ALPACA_API_KEY_ID", "")
-os.environ.setdefault("ALPACA_SECRET_KEY", "")
+os.environ.setdefault("TIDE_TRADER_ACCESS_TOKEN_PATH", os.path.join(tempfile.mkdtemp(), "access-token"))
 os.environ.setdefault("ALLOWED_ORIGINS", "")
 
 import pytest
@@ -21,6 +21,7 @@ from app.dependencies import (
 from app.engine.risk_manager import RiskManager
 from app.engine.state_store import StateStore
 from app.main import app
+from app.security.access_token import require_access_token
 from tests.fakes import FakeBarsClient, FakeMarketDataClient, FakeScreenerClient, FakeTradingClient
 
 
@@ -48,6 +49,7 @@ def api_client(fake_trading_client, fake_market_data_client, risk_manager):
 
     app.dependency_overrides[get_trade_adapter] = lambda: adapter
     app.dependency_overrides[get_risk_manager] = lambda: risk_manager
+    app.dependency_overrides[require_access_token] = lambda: None
 
     with TestClient(app) as client:
         yield client
@@ -71,6 +73,7 @@ def market_api_client(fake_screener_client, fake_bars_client):
 
     market_client = AlpacaMarketDataClient(fake_screener_client, fake_bars_client)
     app.dependency_overrides[get_market_data_client] = lambda: market_client
+    app.dependency_overrides[require_access_token] = lambda: None
 
     with TestClient(app) as client:
         yield client, fake_screener_client, fake_bars_client
@@ -87,5 +90,18 @@ def stream_client():
 
     with TestClient(app) as client:
         yield client, hub
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def alpaca_connection_client():
+    """A bare app client for the /api/v1/alpaca/* router - no adapters overridden,
+    so tests exercise the real AlpacaConnection global slot end-to-end through the
+    HTTP API, only substituting the credential prober to avoid hitting real Alpaca."""
+    app.dependency_overrides[require_access_token] = lambda: None
+
+    with TestClient(app) as client:
+        yield client
 
     app.dependency_overrides.clear()

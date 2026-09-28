@@ -183,11 +183,17 @@ class AlpacaStreamRunner:
 
 
 def build_stream_runner(settings: Settings, hub: MarketDataHub) -> AlpacaStreamRunner | None:
-    """Wire a real Alpaca IEX stream to the hub, or None if no credentials are configured."""
-    if not settings.alpaca_api_key_id or not settings.alpaca_secret_key:
-        return None
+    """Live IEX stream wiring is currently disabled.
 
-    from alpaca.data.live import StockDataStream
-
-    client = StockDataStream(settings.alpaca_api_key_id, settings.alpaca_secret_key)
-    return AlpacaStreamRunner(client, hub)
+    Alpaca credentials now live only in the in-memory `AlpacaConnection` populated by
+    `POST /api/v1/alpaca/connect` (see `app.security.alpaca_session`), which happens
+    well after this lifespan startup runs - `Settings` no longer carries any
+    credential to build a stream client from here. Wiring this hub to that connection
+    is deferred: `/ws/live` is unused by the Electron app today (it streams directly
+    from Alpaca instead - see docs/ARCHITECTURE.md), so there's no active consumer to
+    justify the added complexity yet. Kept as a function (rather than inlined `None`
+    in `main.py`) so that future wiring, and the existing lifespan tests that
+    monkeypatch it, don't need to change shape.
+    """
+    del settings, hub
+    return None
