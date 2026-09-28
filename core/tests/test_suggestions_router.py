@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from app.models.domain import IndicatorSnapshot, Signal, SignalDirection, SignalSource
 
@@ -9,6 +9,7 @@ def _signal(
     symbol: str = "AAPL",
     direction: SignalDirection = SignalDirection.bullish,
     sources: list[SignalSource] | None = None,
+    generated_at: datetime | None = None,
 ) -> Signal:
     return Signal(
         symbol=symbol,
@@ -18,7 +19,7 @@ def _signal(
         indicators=IndicatorSnapshot(sma_fast=105.0, sma_slow=102.0, rsi14=100.0, volume_ratio=2.7),
         triggered_rules=["golden_cross_sma20_sma50", "volume_confirmation"],
         sources=sources or [SignalSource.watchlist],
-        generated_at=datetime(2026, 9, 28, tzinfo=UTC),
+        generated_at=generated_at or datetime(2026, 9, 28, tzinfo=UTC),
     )
 
 
@@ -145,3 +146,30 @@ def test_export_returns_csv_with_expected_header_and_rows(suggestions_api_client
     assert msft_row[10] == "watchlist;alpaca"
     assert msft_row[11] == ""
     assert msft_row[12] == "dismissed"
+
+
+def test_export_filename_reflects_all_time_by_default(suggestions_api_client):
+    client, _ = suggestions_api_client
+    response = client.get("/api/v1/suggestions/export")
+    assert "suggestions_all.csv" in response.headers["content-disposition"]
+
+
+def test_export_with_hours_only_includes_recent_rows(suggestions_api_client):
+    client, store = suggestions_api_client
+    now = datetime.now(UTC)
+    store.create(_signal(symbol="OLD", generated_at=now - timedelta(hours=72)), rationale=None)
+    store.create(_signal(symbol="RECENT", generated_at=now - timedelta(hours=2)), rationale=None)
+
+    response = client.get("/api/v1/suggestions/export?hours=24")
+
+    assert response.status_code == 200
+    assert "suggestions_last_24h.csv" in response.headers["content-disposition"]
+    rows = list(csv.reader(io.StringIO(response.text)))
+    symbols = [row[1] for row in rows[1:]]
+    assert symbols == ["RECENT"]
+
+
+def test_export_rejects_non_positive_hours(suggestions_api_client):
+    client, _ = suggestions_api_client
+    response = client.get("/api/v1/suggestions/export?hours=0")
+    assert response.status_code == 422

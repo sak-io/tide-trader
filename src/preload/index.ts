@@ -6,6 +6,7 @@ import type {
   BarTimeframe,
   BarUpdate,
   Credentials,
+  ExportSuggestionsResult,
   HistoricalBar,
   LatestSnapshot,
   MarketMovers,
@@ -14,7 +15,8 @@ import type {
   StreamStatus,
   Suggestion,
   SuggestionStatus,
-  TradeUpdate
+  TradeUpdate,
+  WatchlistItem
 } from '../shared/types'
 
 const api = {
@@ -39,12 +41,18 @@ const api = {
   listSuggestions: (status?: SuggestionStatus | 'all'): Promise<Suggestion[]> =>
     ipcRenderer.invoke('suggestions:list', status),
   dismissSuggestion: (id: number): Promise<Suggestion> => ipcRenderer.invoke('suggestions:dismiss', id),
+  exportSuggestions: (hours?: number): Promise<ExportSuggestionsResult> =>
+    ipcRenderer.invoke('suggestions:export', hours),
   onNewSuggestion: (callback: (suggestions: Suggestion[]) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, suggestions: Suggestion[]): void =>
       callback(suggestions)
     ipcRenderer.on('suggestions:new', listener)
     return () => ipcRenderer.removeListener('suggestions:new', listener)
   },
+
+  listWatchlist: (): Promise<WatchlistItem[]> => ipcRenderer.invoke('watchlist:list'),
+  addToWatchlist: (symbol: string): Promise<WatchlistItem> => ipcRenderer.invoke('watchlist:add', symbol),
+  removeFromWatchlist: (symbol: string): Promise<void> => ipcRenderer.invoke('watchlist:remove', symbol),
 
   onStreamStatus: (callback: (status: StreamStatus) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, status: StreamStatus): void =>

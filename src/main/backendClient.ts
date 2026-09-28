@@ -12,7 +12,8 @@ import type {
   SaveCredentialsResult,
   Suggestion,
   SuggestionIndicators,
-  SuggestionStatus
+  SuggestionStatus,
+  WatchlistItem
 } from '../shared/types'
 
 const BACKEND_BASE_URL = 'http://127.0.0.1:8000'
@@ -191,4 +192,53 @@ export async function fetchSuggestions(status: SuggestionStatus | 'all' = 'pendi
 export async function dismissSuggestion(id: number): Promise<Suggestion> {
   const raw = await backendRequest<RawSuggestion>(`/api/v1/suggestions/${id}/dismiss`, { method: 'POST' })
   return toSuggestion(raw)
+}
+
+// Not JSON, so this bypasses `backendRequest` (which always parses the body as JSON) -
+// duplicates its token-read/error-handling shape rather than generalizing backendRequest
+// for one non-JSON caller.
+export async function exportSuggestionsCsv(hours?: number): Promise<string> {
+  const token = readAccessToken()
+  const query = hours !== undefined ? `?hours=${hours}` : ''
+
+  let response: Response
+  try {
+    response = await fetch(`${BACKEND_BASE_URL}/api/v1/suggestions/export${query}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+  } catch {
+    throw new Error(
+      `Could not reach the Tide Trader backend at ${BACKEND_BASE_URL}. ` +
+        'Is it running? (cd core && uv run python -m app.main)'
+    )
+  }
+
+  if (!response.ok) {
+    throw new Error(await describeErrorResponse(response))
+  }
+
+  return response.text()
+}
+
+interface RawWatchlistItem {
+  symbol: string
+  added_at: string
+}
+
+function toWatchlistItem(raw: RawWatchlistItem): WatchlistItem {
+  return { symbol: raw.symbol, addedAt: raw.added_at }
+}
+
+export async function fetchWatchlist(): Promise<WatchlistItem[]> {
+  const raw = await backendRequest<RawWatchlistItem[]>('/api/v1/watchlist')
+  return raw.map(toWatchlistItem)
+}
+
+export async function addToWatchlist(symbol: string): Promise<WatchlistItem> {
+  const raw = await backendRequest<RawWatchlistItem>('/api/v1/watchlist', jsonRequest('POST', { symbol }))
+  return toWatchlistItem(raw)
+}
+
+export async function removeFromWatchlist(symbol: string): Promise<void> {
+  await backendRequest<void>(`/api/v1/watchlist/${encodeURIComponent(symbol)}`, { method: 'DELETE' })
 }

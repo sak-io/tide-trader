@@ -52,6 +52,12 @@ export interface SaveCredentialsResult {
   error?: string
 }
 
+export interface ExportSuggestionsResult {
+  success: boolean
+  path?: string
+  error?: string
+}
+
 export interface LatestSnapshot {
   trade?: TradeUpdate
   quote?: QuoteUpdate
@@ -98,6 +104,11 @@ export interface SuggestionIndicators {
   smaSlow: number
   rsi14: number
   volumeRatio: number
+}
+
+export interface WatchlistItem {
+  symbol: string
+  addedAt: string
 }
 
 export interface Suggestion {

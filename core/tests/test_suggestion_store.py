@@ -1,4 +1,4 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from app.engine.suggestion_store import SuggestionStore
 from app.models.domain import (
@@ -115,6 +115,18 @@ def test_dismiss_flips_status_but_keeps_the_row(tmp_path):
 def test_dismiss_missing_id_returns_none(tmp_path):
     store = SuggestionStore(tmp_path / "suggestions.db")
     assert store.dismiss(999) is None
+
+
+def test_list_all_filters_by_since(tmp_path):
+    store = SuggestionStore(tmp_path / "suggestions.db")
+    now = datetime.now(UTC)
+    old = store.create(_signal(symbol="AAPL", generated_at=now - timedelta(hours=48)), rationale=None)
+    recent = store.create(_signal(symbol="MSFT", generated_at=now - timedelta(hours=1)), rationale=None)
+
+    result = store.list_all(since=now - timedelta(hours=24))
+
+    assert [s.id for s in result] == [recent.id]
+    assert old.id not in [s.id for s in result]
 
 
 def test_sources_round_trip_preserves_multiple_tags(tmp_path):

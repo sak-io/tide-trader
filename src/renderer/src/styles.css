@@ -259,6 +259,12 @@ body {
   align-items: start;
 }
 
+.dashboard-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
 /* Discover panel */
 
 .discover-panel {
@@ -514,6 +520,25 @@ body {
   margin: 0;
 }
 
+.suggestions-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.download-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.download-label {
+  color: #6b7280;
+  font-size: 12px;
+}
+
 .suggestions-list {
   list-style: none;
   margin: 0;
@@ -578,4 +603,83 @@ body {
   font-size: 13px;
   line-height: 1.5;
   margin: 0;
+}
+
+/* Watchlist panel */
+
+.watchlist-panel {
+  background: #171a21;
+  border: 1px solid #2c313d;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.watchlist-panel h2 {
+  font-size: 14px;
+  margin: 0;
+}
+
+.watchlist-panel .subtitle {
+  font-size: 11px;
+  margin: 0;
+}
+
+.watchlist-add-form {
+  display: flex;
+  gap: 6px;
+}
+
+.watchlist-add-form input {
+  flex: 1;
+  background: #0f1115;
+  border: 1px solid #2c313d;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #e6e8eb;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.watchlist-add-form input:focus {
+  outline: none;
+  border-color: #4a7dfc;
+}
+
+.watchlist-add-form button {
+  background: #232734;
+  border: 1px solid #2c313d;
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: #e6e8eb;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.watchlist-add-form button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.watchlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.watchlist-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-size: 13px;
+}
+
+.watchlist-row .symbol {
+  font-weight: 600;
 }

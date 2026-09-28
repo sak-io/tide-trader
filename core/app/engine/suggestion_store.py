@@ -164,7 +164,12 @@ class SuggestionStore:
     def list_pending(self) -> list[Suggestion]:
         return self.list_all(status=SuggestionStatus.pending)
 
-    def list_all(self, symbol: str | None = None, status: SuggestionStatus | None = None) -> list[Suggestion]:
+    def list_all(
+        self,
+        symbol: str | None = None,
+        status: SuggestionStatus | None = None,
+        since: datetime | None = None,
+    ) -> list[Suggestion]:
         query = f"SELECT {_SELECT_COLUMNS} FROM suggestions"  # nosec B608
         clauses = []
         params: list[str] = []
@@ -174,6 +179,9 @@ class SuggestionStore:
         if status is not None:
             clauses.append("status = ?")
             params.append(status.value)
+        if since is not None:
+            clauses.append("generated_at >= ?")
+            params.append(since.isoformat())
         if clauses:
             query += " WHERE " + " AND ".join(clauses)
         query += " ORDER BY generated_at ASC, id ASC"

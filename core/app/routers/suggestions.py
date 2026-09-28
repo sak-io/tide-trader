@@ -1,5 +1,6 @@
 import csv
 import io
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fastapi import status as http_status
@@ -54,12 +55,18 @@ def list_suggestions(
 
 
 @router.get("/export")
-def export_suggestions_csv(store: SuggestionStore = Depends(get_suggestion_store)) -> Response:
+def export_suggestions_csv(
+    hours: float | None = Query(default=None, gt=0, description="Only include suggestions from the last N hours."),
+    store: SuggestionStore = Depends(get_suggestion_store),
+) -> Response:
+    since = datetime.now(UTC) - timedelta(hours=hours) if hours is not None else None
+    filename = f"suggestions_last_{int(hours)}h.csv" if hours is not None else "suggestions_all.csv"
+
     buffer = io.StringIO()
     writer = csv.writer(buffer)
     writer.writerow(_CSV_HEADER)
 
-    for row in store.list_all():
+    for row in store.list_all(since=since):
         writer.writerow(
             [
                 row.id,
@@ -83,7 +90,7 @@ def export_suggestions_csv(store: SuggestionStore = Depends(get_suggestion_store
     return Response(
         content=buffer.getvalue(),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=suggestions.csv"},
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 

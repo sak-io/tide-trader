@@ -1,16 +1,21 @@
-import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Notification, shell } from 'electron'
+import { writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import * as alpacaCredentialCache from './alpacaCredentialCache'
 import { getLatestSnapshot, searchAssets } from './alpacaRest'
 import {
+  addToWatchlist,
   connectAlpaca,
   dismissSuggestion,
   disconnectAlpaca,
+  exportSuggestionsCsv,
   fetchBars,
   fetchMostActive,
   fetchMovers,
   fetchSuggestions,
-  getAlpacaStatus
+  fetchWatchlist,
+  getAlpacaStatus,
+  removeFromWatchlist
 } from './backendClient'
 import { AlpacaStream } from './alpacaStream'
 import { SuggestionsPoller } from './suggestionsPoller'
@@ -18,6 +23,7 @@ import type {
   AlpacaStatus,
   BarTimeframe,
   Credentials,
+  ExportSuggestionsResult,
   SaveCredentialsResult,
   SuggestionStatus
 } from '../shared/types'
@@ -144,6 +150,28 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('suggestions:list', (_event, status?: SuggestionStatus | 'all') => fetchSuggestions(status))
   ipcMain.handle('suggestions:dismiss', (_event, id: number) => dismissSuggestion(id))
+
+  ipcMain.handle('suggestions:export', async (_event, hours?: number): Promise<ExportSuggestionsResult> => {
+    try {
+      const csv = await exportSuggestionsCsv(hours)
+      const defaultName = hours ? `suggestions_last_${hours}h.csv` : 'suggestions_all.csv'
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        title: 'Save Trade Suggestions',
+        defaultPath: defaultName,
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+      })
+      if (canceled || !filePath) return { success: false }
+
+      await writeFile(filePath, csv, 'utf-8')
+      return { success: true, path: filePath }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('watchlist:list', () => fetchWatchlist())
+  ipcMain.handle('watchlist:add', (_event, symbol: string) => addToWatchlist(symbol))
+  ipcMain.handle('watchlist:remove', (_event, symbol: string) => removeFromWatchlist(symbol))
 }
 
 app.whenReady().then(() => {

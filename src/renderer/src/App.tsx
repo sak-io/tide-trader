@@ -4,6 +4,7 @@ import SearchBar from './components/SearchBar'
 import DiscoverPanel from './components/DiscoverPanel'
 import SuggestionsPanel from './components/SuggestionsPanel'
 import SymbolDetail from './components/SymbolDetail'
+import WatchlistPanel from './components/WatchlistPanel'
 import type { AssetSummary, StreamStatus } from '../../shared/types'
 
 const SELECTED_SYMBOL_STORAGE_KEY = 'tide-trader:selected-symbol'
@@ -77,10 +78,15 @@ export default function App(): JSX.Element {
         </div>
       </header>
 
+      <SuggestionsPanel />
+
       <SearchBar onSelect={handleSelectAsset} />
 
       <div className="dashboard">
-        <DiscoverPanel selectedSymbol={selectedSymbol} onSelect={handleSelectSymbol} />
+        <div className="dashboard-sidebar">
+          <DiscoverPanel selectedSymbol={selectedSymbol} onSelect={handleSelectSymbol} />
+          <WatchlistPanel />
+        </div>
 
         {selectedSymbol ? (
           <SymbolDetail key={selectedSymbol} symbol={selectedSymbol} />
@@ -91,8 +97,6 @@ export default function App(): JSX.Element {
           </div>
         )}
       </div>
-
-      <SuggestionsPanel />
     </div>
   )
 }

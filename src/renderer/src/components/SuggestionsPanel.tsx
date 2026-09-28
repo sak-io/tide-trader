@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react'
 import type { Suggestion } from '../../../shared/types'
 
+const DOWNLOAD_RANGES: { label: string; hours: number | undefined }[] = [
+  { label: '24h', hours: 24 },
+  { label: '2d', hours: 48 },
+  { label: '7d', hours: 168 },
+  { label: 'All', hours: undefined }
+]
+
 export default function SuggestionsPanel(): JSX.Element {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadMessage, setDownloadMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -45,10 +54,45 @@ export default function SuggestionsPanel(): JSX.Element {
     }
   }
 
+  async function handleDownload(hours: number | undefined): Promise<void> {
+    setDownloading(true)
+    setDownloadMessage(null)
+    try {
+      const result = await window.alpaca.exportSuggestions(hours)
+      if (result.success && result.path) {
+        setDownloadMessage(`Saved to ${result.path}`)
+      } else if (!result.success && result.error) {
+        setDownloadMessage(result.error)
+      }
+      // A cancelled save dialog is neither a success nor an error - leave the
+      // message blank rather than reporting a spurious failure.
+    } catch (err) {
+      setDownloadMessage(err instanceof Error ? err.message : 'Failed to export suggestions')
+    } finally {
+      setDownloading(false)
+    }
+  }
+
   return (
     <div className="suggestions-panel">
-      <h2>Trade Suggestions</h2>
+      <div className="suggestions-panel-header">
+        <h2>Trade Suggestions</h2>
+        <div className="download-toolbar">
+          <span className="download-label">Download:</span>
+          {DOWNLOAD_RANGES.map((range) => (
+            <button
+              key={range.label}
+              className="link-btn"
+              disabled={downloading}
+              onClick={() => handleDownload(range.hours)}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
+      {downloadMessage && <div className="loading-row">{downloadMessage}</div>}
       {error && <div className="error-banner">{error}</div>}
       {loading && !error && <div className="loading-row">Loading suggestions…</div>}
 
