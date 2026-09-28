@@ -1,0 +1,26 @@
+services:
+  core:
+    build: .
+    image: tide-trader-core:local
+    env_file:
+      - .env
+    environment:
+      # Fixed regardless of .env - these must match the container's own
+      # filesystem/network, not whatever a local (non-Docker) run used.
+      HOST: 0.0.0.0
+      PORT: 8000
+      DB_PATH: /app/data/tide_trader_state.db
+    ports:
+      # Bind to 127.0.0.1 on the host, not 0.0.0.0: this API can place real
+      # (paper) orders and should stay reachable only from this machine, not
+      # the local network. The container itself must listen on 0.0.0.0 (see
+      # HOST above) for Docker's port publishing to work at all.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Keeps the kill-switch / daily-drawdown SQLite state across container
+      # restarts and rebuilds.
+      - tide_trader_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  tide_trader_data:

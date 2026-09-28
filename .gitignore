@@ -1,0 +1,18 @@
+node_modules
+out
+dist
+dist-electron
+*.log
+*.tsbuildinfo
+.DS_Store
+.env
+.issues_comments
+.claude
+
+# Python (core/)
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+*.db
