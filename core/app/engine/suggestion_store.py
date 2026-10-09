@@ -17,9 +17,12 @@ from pathlib import Path
 
 from app.models.domain import (
     IndicatorSnapshot,
+    PerformanceSummary,
     Signal,
+    SignalDirection,
     SignalSource,
     Suggestion,
+    SuggestionOutcome,
     SuggestionStatus,
 )
 
@@ -41,6 +44,16 @@ CREATE TABLE IF NOT EXISTS suggestions (
 )
 """
 
+# Columns added after the first release; applied to pre-existing databases on startup.
+_MIGRATION_COLUMNS = {
+    "stop_price": "REAL",
+    "target_price": "REAL",
+    "outcome": "TEXT NOT NULL DEFAULT 'open'",
+    "outcome_price": "REAL",
+    "outcome_at": "TEXT",
+    "last_price": "REAL",
+}
+
 _INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_suggestions_symbol_generated_at "
     "ON suggestions (symbol, generated_at)"
@@ -53,8 +66,14 @@ _INDEX = (
 # a `?` placeholder and the sqlite3 parameter tuple, never string interpolation.
 _SELECT_COLUMNS = (
     "id, symbol, direction, price, score, indicators_json, triggered_rules_json, "
-    "sources_json, rationale, status, generated_at, updated_at"
+    "sources_json, rationale, status, generated_at, updated_at, "
+    "stop_price, target_price, outcome, outcome_price, outcome_at, last_price"
 )
+
+
+def return_pct(direction: SignalDirection, entry: float, price: float) -> float:
+    change = (price - entry) / entry * 100
+    return change if direction == SignalDirection.bullish else -change
 
 
 def dedupe_key(symbol: str, direction: str, day: str) -> str:
@@ -70,6 +89,10 @@ class SuggestionStore:
 
         with self._connect() as conn:
             conn.execute(_SCHEMA)
+            existing = {row[1] for row in conn.execute("PRAGMA table_info(suggestions)")}
+            for column, ddl in _MIGRATION_COLUMNS.items():
+                if column not in existing:
+                    conn.execute(f"ALTER TABLE suggestions ADD COLUMN {column} {ddl}")  # nosec B608
             conn.execute(_INDEX)
             conn.commit()
 
@@ -98,8 +121,9 @@ class SuggestionStore:
                 """
                 INSERT INTO suggestions (
                     symbol, direction, price, score, indicators_json, triggered_rules_json,
-                    sources_json, rationale, status, generated_at, updated_at, dedupe_key
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    sources_json, rationale, status, generated_at, updated_at, dedupe_key,
+                    stop_price, target_price
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     signal.symbol,
@@ -114,6 +138,8 @@ class SuggestionStore:
                     signal.generated_at.isoformat(),
                     now,
                     key,
+                    signal.stop_price,
+                    signal.target_price,
                 ),
             )
             conn.commit()
@@ -145,7 +171,14 @@ class SuggestionStore:
             status,
             generated_at,
             updated_at,
+            stop_price,
+            target_price,
+            outcome,
+            outcome_price,
+            outcome_at,
+            last_price,
         ) = row
+        mark = outcome_price if outcome_price is not None else last_price
         return Suggestion(
             id=row_id,
             symbol=symbol,
@@ -159,6 +192,13 @@ class SuggestionStore:
             status=status,
             generated_at=generated_at,
             updated_at=updated_at,
+            stop_price=stop_price,
+            target_price=target_price,
+            outcome=outcome,
+            outcome_price=outcome_price,
+            outcome_at=outcome_at,
+            last_price=last_price,
+            return_pct=return_pct(SignalDirection(direction), price, mark) if mark is not None else None,
         )
 
     def list_pending(self) -> list[Suggestion]:
@@ -189,6 +229,49 @@ class SuggestionStore:
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
         return [self._row_to_suggestion(row) for row in rows]
+
+    def list_open(self) -> list[Suggestion]:
+        query = f"SELECT {_SELECT_COLUMNS} FROM suggestions WHERE outcome = ? ORDER BY id"  # nosec B608
+        with self._connect() as conn:
+            rows = conn.execute(query, (SuggestionOutcome.open.value,)).fetchall()
+        return [self._row_to_suggestion(row) for row in rows]
+
+    def record_outcome(
+        self,
+        suggestion_id: int,
+        outcome: SuggestionOutcome,
+        outcome_price: float | None,
+        outcome_at: datetime | None,
+        last_price: float | None,
+    ) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE suggestions SET outcome = ?, outcome_price = ?, outcome_at = ?, last_price = ? "
+                "WHERE id = ?",
+                (
+                    outcome.value,
+                    outcome_price,
+                    outcome_at.isoformat() if outcome_at else None,
+                    last_price,
+                    suggestion_id,
+                ),
+            )
+            conn.commit()
+
+    def performance(self) -> PerformanceSummary:
+        rows = self.list_all()
+        counts = {o: sum(1 for r in rows if r.outcome == o) for o in SuggestionOutcome}
+        closed = [r for r in rows if r.outcome != SuggestionOutcome.open and r.return_pct is not None]
+        wins = sum(1 for r in closed if r.return_pct > 0)
+        return PerformanceSummary(
+            total=len(rows),
+            open=counts[SuggestionOutcome.open],
+            target_hit=counts[SuggestionOutcome.target_hit],
+            stopped=counts[SuggestionOutcome.stopped],
+            expired=counts[SuggestionOutcome.expired],
+            win_rate_pct=wins / len(closed) * 100 if closed else None,
+            avg_return_pct=sum(r.return_pct for r in closed) / len(closed) if closed else None,
+        )
 
     def dismiss(self, suggestion_id: int) -> Suggestion | None:
         now = datetime.now(UTC).isoformat()

@@ -13,6 +13,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from app.engine.monitor import SuggestionMonitor
 from app.engine.rationale import RationaleGenerator
 from app.engine.screener import build_scan_universe, detect_crossover_signal
 from app.engine.suggestion_store import SuggestionStore
@@ -46,6 +47,7 @@ class SuggestionScanLoop:
         self._suggestion_store = suggestion_store
         self._rationale_generator = rationale_generator
         self._config = config or ScanLoopConfig()
+        self._monitor = SuggestionMonitor(connection, suggestion_store)
 
     async def run_once(self) -> None:
         session = self._connection.get()
@@ -54,6 +56,11 @@ class SuggestionScanLoop:
             return
 
         market_client = session.market_data_client
+
+        try:
+            await asyncio.to_thread(self._monitor.run_once)
+        except Exception:
+            logger.exception("Suggestion outcome monitoring failed; continuing with scan.")
 
         watchlist_symbols = [item.symbol for item in self._watchlist_store.list()]
         most_active = [t.symbol for t in market_client.get_most_active(top=self._config.most_active_top)]

@@ -27,6 +27,9 @@ _SMA_FAST_PERIOD = 20
 _SMA_SLOW_PERIOD = 50
 _RSI_PERIOD = 14
 _VOLUME_SMA_PERIOD = 20
+_ATR_PERIOD = 14
+_STOP_ATR_MULT = 1.5
+_TARGET_ATR_MULT = 3.0
 
 _VOLUME_RATIO_THRESHOLD = 1.5
 _BULLISH_RSI_ZONE = (45.0, 65.0)
@@ -72,6 +75,33 @@ def volume_ratio(volumes: list[float], period: int = _VOLUME_SMA_PERIOD) -> floa
     if not average:
         return None
     return volumes[-1] / average
+
+
+def atr(bars: list[HistoricalBar], period: int = _ATR_PERIOD) -> float | None:
+    """Wilder-smoothed average true range. None if there isn't enough data."""
+    if len(bars) < period + 1:
+        return None
+    true_ranges = [
+        max(bar.high - bar.low, abs(bar.high - prev.close), abs(bar.low - prev.close))
+        for prev, bar in zip(bars, bars[1:], strict=False)
+    ]
+    value = sum(true_ranges[:period]) / period
+    for true_range in true_ranges[period:]:
+        value = (value * (period - 1) + true_range) / period
+    return value
+
+
+def trade_plan(
+    direction: SignalDirection, entry: float, atr_value: float | None
+) -> tuple[float | None, float | None]:
+    """(stop, target) at 1.5x / 3x ATR from entry (a 2:1 reward-to-risk plan)."""
+    if atr_value is None or atr_value <= 0:
+        return None, None
+    sign = 1 if direction == SignalDirection.bullish else -1
+    stop = entry - sign * _STOP_ATR_MULT * atr_value
+    if stop <= 0:
+        return None, None
+    return stop, entry + sign * _TARGET_ATR_MULT * atr_value
 
 
 @dataclass
@@ -178,11 +208,16 @@ def detect_crossover_signal(
     if score < min_score:
         return None
 
+    entry = bars[-1].close
+    stop_price, target_price = trade_plan(direction, entry, atr(bars))
+
     return Signal(
         symbol=candidate.symbol,
         direction=direction,
-        price=bars[-1].close,
+        price=entry,
         score=score,
+        stop_price=stop_price,
+        target_price=target_price,
         indicators=IndicatorSnapshot(
             sma_fast=fast_now,
             sma_slow=slow_now,

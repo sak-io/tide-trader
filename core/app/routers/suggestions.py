@@ -7,7 +7,7 @@ from fastapi import status as http_status
 
 from app.dependencies import get_suggestion_store
 from app.engine.suggestion_store import SuggestionStore
-from app.models.domain import Suggestion, SuggestionStatus
+from app.models.domain import PerformanceSummary, Suggestion, SuggestionStatus
 from app.security.access_token import require_access_token
 
 router = APIRouter(
@@ -20,6 +20,11 @@ _CSV_HEADER = [
     "direction",
     "price",
     "score",
+    "stop_price",
+    "target_price",
+    "outcome",
+    "outcome_price",
+    "return_pct",
     "sma_fast",
     "sma_slow",
     "rsi14",
@@ -54,6 +59,11 @@ def list_suggestions(
     return store.list_all(symbol=symbol, status=_parse_status_filter(status))
 
 
+@router.get("/performance", response_model=PerformanceSummary)
+def suggestion_performance(store: SuggestionStore = Depends(get_suggestion_store)) -> PerformanceSummary:
+    return store.performance()
+
+
 @router.get("/export")
 def export_suggestions_csv(
     hours: float | None = Query(default=None, gt=0, description="Only include suggestions from the last N hours."),
@@ -74,6 +84,11 @@ def export_suggestions_csv(
                 row.direction.value,
                 row.price,
                 row.score,
+                row.stop_price,
+                row.target_price,
+                row.outcome.value,
+                row.outcome_price,
+                row.return_pct,
                 row.indicators.sma_fast,
                 row.indicators.sma_slow,
                 row.indicators.rsi14,

@@ -145,6 +145,8 @@ class Signal(BaseModel):
     direction: SignalDirection
     price: float
     score: float
+    stop_price: float | None = None
+    target_price: float | None = None
     indicators: IndicatorSnapshot
     triggered_rules: list[str]
     sources: list[SignalSource]
@@ -156,12 +158,26 @@ class SuggestionStatus(StrEnum):
     dismissed = "dismissed"
 
 
+class SuggestionOutcome(StrEnum):
+    open = "open"
+    target_hit = "target_hit"
+    stopped = "stopped"
+    expired = "expired"
+
+
 class Suggestion(BaseModel):
     id: int
     symbol: str
     direction: SignalDirection
     price: float
     score: float
+    stop_price: float | None = None
+    target_price: float | None = None
+    outcome: SuggestionOutcome = SuggestionOutcome.open
+    outcome_price: float | None = None
+    outcome_at: datetime | None = None
+    last_price: float | None = None
+    return_pct: float | None = None
     indicators: IndicatorSnapshot
     triggered_rules: list[str]
     sources: list[SignalSource]
@@ -183,3 +199,15 @@ class WatchlistAddRequest(BaseModel):
     def normalize(self) -> "WatchlistAddRequest":
         self.symbol = self.symbol.strip().upper()
         return self
+
+
+class PerformanceSummary(BaseModel):
+    """Hypothetical results of all suggestions - nothing here was ever traded."""
+
+    total: int
+    open: int
+    target_hit: int
+    stopped: int
+    expired: int
+    win_rate_pct: float | None
+    avg_return_pct: float | None

@@ -122,6 +122,11 @@ def test_export_returns_csv_with_expected_header_and_rows(suggestions_api_client
         "direction",
         "price",
         "score",
+        "stop_price",
+        "target_price",
+        "outcome",
+        "outcome_price",
+        "return_pct",
         "sma_fast",
         "sma_slow",
         "rsi14",
@@ -136,16 +141,16 @@ def test_export_returns_csv_with_expected_header_and_rows(suggestions_api_client
 
     assert aapl_row[1] == "AAPL"
     assert aapl_row[2] == "bullish"
-    assert aapl_row[9] == "golden_cross_sma20_sma50;volume_confirmation"
-    assert aapl_row[10] == "watchlist"
-    assert aapl_row[11] == "Strong setup."
-    assert aapl_row[12] == "pending"
+    assert aapl_row[14] == "golden_cross_sma20_sma50;volume_confirmation"
+    assert aapl_row[15] == "watchlist"
+    assert aapl_row[16] == "Strong setup."
+    assert aapl_row[17] == "pending"
 
     assert msft_row[1] == "MSFT"
     assert msft_row[2] == "bearish"
-    assert msft_row[10] == "watchlist;alpaca"
-    assert msft_row[11] == ""
-    assert msft_row[12] == "dismissed"
+    assert msft_row[15] == "watchlist;alpaca"
+    assert msft_row[16] == ""
+    assert msft_row[17] == "dismissed"
 
 
 def test_export_filename_reflects_all_time_by_default(suggestions_api_client):
