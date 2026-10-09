@@ -42,7 +42,7 @@ def test_restrict_to_owner_chmods_0o600_on_posix(tmp_path, monkeypatch):
     target = tmp_path / "file"
     target.write_text("x", encoding="utf-8")
     calls = []
-    monkeypatch.setattr(access_token_module.sys, "platform", "linux")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", False)
     monkeypatch.setattr(access_token_module.os, "chmod", lambda path, mode: calls.append((path, mode)))
 
     access_token_module._restrict_to_owner(target)
@@ -54,7 +54,7 @@ def test_restrict_to_owner_skips_chmod_on_windows(tmp_path, monkeypatch):
     target = tmp_path / "file"
     target.write_text("x", encoding="utf-8")
     calls = []
-    monkeypatch.setattr(access_token_module.sys, "platform", "win32")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
     monkeypatch.setattr(access_token_module.os, "chmod", lambda path, mode: calls.append((path, mode)))
 
     access_token_module._restrict_to_owner(target)
@@ -62,8 +62,32 @@ def test_restrict_to_owner_skips_chmod_on_windows(tmp_path, monkeypatch):
     assert calls == []
 
 
+def test_restrict_to_owner_warns_on_windows_outside_home(tmp_path, monkeypatch, caplog):
+    target = tmp_path / "file"
+    target.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
+    monkeypatch.setattr(access_token_module.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+
+    with caplog.at_level("WARNING"):
+        access_token_module._restrict_to_owner(target)
+
+    assert "outside your user profile" in caplog.text
+
+
+def test_restrict_to_owner_silent_on_windows_inside_home(tmp_path, monkeypatch, caplog):
+    target = tmp_path / "file"
+    target.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
+    monkeypatch.setattr(access_token_module.Path, "home", classmethod(lambda cls: tmp_path))
+
+    with caplog.at_level("WARNING"):
+        access_token_module._restrict_to_owner(target)
+
+    assert caplog.text == ""
+
+
 def test_token_is_created_and_reused_when_running_as_windows(tmp_path, monkeypatch):
-    monkeypatch.setattr(access_token_module.sys, "platform", "win32")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
     token_path = tmp_path / "access-token"
 
     token = load_or_create_access_token(token_path)

@@ -38,12 +38,12 @@ together and why they're built this way.
 - An **Alpaca Paper Trading account** (free) — see below.
 - macOS or Windows 10/11 (an iOS companion app is a future goal, not built
   yet). On Linux the backend and tests run fine (CI covers it); the desktop
-  app should too, but it isn't a supported target. Electron 44+ requires macOS 13 (Ventura) or newer —
-  on macOS 12 (Monterey) or older, the app crashes on launch with a `dyld`
-  error (`Symbol not found: _OBJC_CLASS_$_SMAppService`). This repo pins
-  Electron to the 43.x line specifically to stay compatible with macOS 12;
-  don't bump past `44.0.0` without checking your minimum supported macOS
-  version first.
+  app should too, but it isn't a supported target.
+  - Electron 44+ requires macOS 13 (Ventura) or newer. On macOS 12 (Monterey)
+    or older, the app crashes on launch with a `dyld` error
+    (`Symbol not found: _OBJC_CLASS_$_SMAppService`). This repo pins Electron
+    to the 43.x line specifically to stay compatible with macOS 12; don't bump
+    past `44.0.0` without checking your minimum supported macOS version first.
 
 ### Windows
 

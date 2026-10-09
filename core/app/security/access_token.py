@@ -5,6 +5,7 @@ alongside it on the same laptop, written to a well-known local path so neither s
 needs a login/hand-off endpoint to learn it.
 """
 
+import logging
 import os
 import secrets
 import sys
@@ -16,6 +17,11 @@ from fastapi import HTTPException, Request, status
 # the real per-machine token file at ~/.tide-trader/access-token.
 _PATH_OVERRIDE_ENV_VAR = "TIDE_TRADER_ACCESS_TOKEN_PATH"
 _DEFAULT_PATH = Path.home() / ".tide-trader" / "access-token"
+
+# Module-level so tests can patch it without touching the process-wide sys.platform.
+_IS_WINDOWS = sys.platform == "win32"
+
+logger = logging.getLogger(__name__)
 
 
 def _default_token_path() -> Path:
@@ -53,9 +59,26 @@ def _restrict_to_owner(path: Path) -> None:
     already grants access only to that user, SYSTEM and Administrators - the
     equivalent of 0o600 plus root on POSIX. So nothing extra is done on Windows.
     """
-    if sys.platform == "win32":
+    if _IS_WINDOWS:
+        if not _is_within_home(path):
+            logger.warning(
+                "Access token written to %s, outside your user profile. On Windows its "
+                "permissions are not restricted by this app and may be readable by other "
+                "users; keep it under %%USERPROFILE%% or run: "
+                'icacls "%s" /inheritance:r /grant:r "%%USERNAME%%:F"',
+                path,
+                path,
+            )
         return
     os.chmod(path, 0o600)
+
+
+def _is_within_home(path: Path) -> bool:
+    try:
+        path.resolve().relative_to(Path.home().resolve())
+    except ValueError:
+        return False
+    return True
 
 
 def require_access_token(request: Request) -> None:
