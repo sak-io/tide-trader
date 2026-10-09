@@ -10,7 +10,7 @@ Two independent processes, two different jobs:
 
 ```mermaid
 flowchart LR
-    subgraph Electron["Electron app (macOS)"]
+    subgraph Electron["Electron app (macOS / Windows)"]
         Renderer["Renderer (React)\ndashboard, chart, search"]
         Main["Main process (Node)\nIPC, credential storage,\ndirect Alpaca REST + WS client"]
         Renderer <-->|IPC| Main
@@ -141,7 +141,10 @@ somewhere it could leak from.
   would let one process hand the raw secret back to the other.
 - **A shared access token gates the REST API.** On first run the backend
   generates `secrets.token_urlsafe(32)` and writes it to
-  `~/.tide-trader/access-token` (`0o600`). Electron reads the same
+  `~/.tide-trader/access-token` (`0o600`; on Windows,
+  `%USERPROFILE%\.tide-trader\access-token`, where `chmod` can't express
+  owner-only access and the file instead relies on the user profile's NTFS ACL,
+  which already limits it to that user, SYSTEM and Administrators). Electron reads the same
   well-known path and sends it as `Authorization: Bearer <token>` on every
   request. This is not a user-identity system — it's a single shared secret
   answering "is the caller our own Electron app," so no other local process
