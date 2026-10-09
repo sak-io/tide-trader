@@ -1,12 +1,10 @@
+/* global console, process, setTimeout */
 // Launch the built Electron app for real and make sure it starts and stays up.
 // Run after `npm run build`. The Electron binary is downloaded on first require
 // (Electron >= 42 does this lazily), so this also proves a fresh clone can launch it
 // despite `.npmrc`'s ignore-scripts=true.
 import { spawn } from 'node:child_process'
-import { console } from 'node:console'
 import { createRequire } from 'node:module'
-import process from 'node:process'
-import { setTimeout } from 'node:timers'
 
 const STAY_UP_MS = 15_000
 const require = createRequire(import.meta.url)
