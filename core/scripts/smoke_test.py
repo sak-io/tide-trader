@@ -56,6 +56,12 @@ def wait_for_backend(process: subprocess.Popen) -> None:
 
 
 def check_windows_acl() -> None:
+    # TEMP DIAGNOSTIC: does running the same icacls command by hand harden the file?
+    manual = subprocess.run(  # nosec B603 B607
+        ["icacls", str(TOKEN_PATH), "/inheritance:r", "/grant:r", f"{getpass.getuser()}:F"],
+        capture_output=True, text=True, timeout=10,
+    )
+    print("MANUAL icacls rc=", manual.returncode, manual.stdout, manual.stderr)
     result = subprocess.run(  # nosec B603 B607
         ["icacls", str(TOKEN_PATH)], capture_output=True, text=True, check=True, timeout=10
     )
