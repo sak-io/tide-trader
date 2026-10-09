@@ -1,9 +1,7 @@
 import asyncio
 import threading
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
-
-import pytest
 
 from app.adapters.alpaca_data import (
     AlpacaStreamRunner,
@@ -83,7 +81,7 @@ async def test_publish_threadsafe_is_a_noop_without_a_bound_loop():
 
 
 def test_trade_to_message_conversion():
-    trade = SimpleNamespace(symbol="AAPL", price=190.5, size=100, timestamp=datetime.now(timezone.utc))
+    trade = SimpleNamespace(symbol="AAPL", price=190.5, size=100, timestamp=datetime.now(UTC))
     message = trade_to_message(trade)
 
     assert message == {
@@ -102,7 +100,7 @@ def test_quote_to_message_conversion():
         bid_size=1,
         ask_price=190.5,
         ask_size=2,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     message = quote_to_message(quote)
 
@@ -114,7 +112,7 @@ def test_quote_to_message_conversion():
 def test_bar_to_message_conversion():
     bar = SimpleNamespace(
         symbol="AAPL", open=190.0, high=191.0, low=189.5, close=190.8, volume=12345,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     message = bar_to_message(bar)
 
@@ -161,7 +159,7 @@ async def test_stream_runner_handler_publishes_trade_into_hub():
     queue: asyncio.Queue = asyncio.Queue()
     await hub.subscribe(queue, ["AAPL"])
 
-    trade = SimpleNamespace(symbol="AAPL", price=100.0, size=1, timestamp=datetime.now(timezone.utc))
+    trade = SimpleNamespace(symbol="AAPL", price=100.0, size=1, timestamp=datetime.now(UTC))
     await runner._handle_trade(trade)
 
     message = await asyncio.wait_for(queue.get(), timeout=1)
@@ -180,7 +178,7 @@ async def test_stream_runner_handler_publishes_quote_into_hub():
 
     quote = SimpleNamespace(
         symbol="AAPL", bid_price=99.0, bid_size=1, ask_price=100.0, ask_size=2,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     await runner._handle_quote(quote)
 
@@ -200,7 +198,7 @@ async def test_stream_runner_handler_publishes_bar_into_hub():
 
     bar = SimpleNamespace(
         symbol="AAPL", open=100.0, high=101.0, low=99.5, close=100.5, volume=500,
-        timestamp=datetime.now(timezone.utc),
+        timestamp=datetime.now(UTC),
     )
     await runner._handle_bar(bar)
 

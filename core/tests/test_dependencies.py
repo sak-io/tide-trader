@@ -34,7 +34,8 @@ def test_get_risk_manager_reads_from_app_state():
 
 
 def test_get_market_data_hub_reads_from_app_state():
-    fake_websocket = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(market_data_hub="hub-sentinel")))
+    state = SimpleNamespace(market_data_hub="hub-sentinel")
+    fake_websocket = SimpleNamespace(app=SimpleNamespace(state=state))
     assert get_market_data_hub(fake_websocket) == "hub-sentinel"
 
 

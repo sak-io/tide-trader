@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 
@@ -34,7 +34,7 @@ class FakeTradingClient:
             qty=order_data.qty,
             side=order_data.side,
             status=SimpleNamespace(value="accepted"),
-            submitted_at=datetime.now(timezone.utc),
+            submitted_at=datetime.now(UTC),
             filled_qty="0",
             filled_avg_price=None,
             limit_price=getattr(order_data, "limit_price", None),
