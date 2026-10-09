@@ -41,13 +41,13 @@ def test_token_file_is_created_with_owner_only_permissions(tmp_path):
 def test_restrict_to_owner_skips_chmod_on_windows(tmp_path, monkeypatch):
     target = tmp_path / "file"
     target.write_text("x", encoding="utf-8")
-    target.chmod(0o644)
+    mode_before = stat.S_IMODE(target.stat().st_mode)
     monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
 
     access_token_module._restrict_to_owner(target)
 
     # Untouched: no chmod happens on the Windows branch.
-    assert stat.S_IMODE(target.stat().st_mode) == 0o644
+    assert stat.S_IMODE(target.stat().st_mode) == mode_before
 
 
 def test_restrict_to_owner_warns_on_windows_outside_home(tmp_path, monkeypatch, caplog):
