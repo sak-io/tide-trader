@@ -49,6 +49,9 @@ jobs:
       - name: Run tests with coverage
         run: uv run pytest --cov=app --cov-report=term-missing
 
+      - name: Smoke test (boot the real backend, check auth + token permissions)
+        run: uv run python scripts/smoke_test.py
+
   frontend-build:
     name: Frontend tests + typecheck + build (Electron, ${{ matrix.os }})
     strategy:
@@ -85,3 +88,7 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Smoke test (launch the built Electron app)
+        if: runner.os == 'Windows'
+        run: node scripts/electron-smoke.mjs

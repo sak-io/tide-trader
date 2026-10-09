@@ -5,9 +5,11 @@ alongside it on the same laptop, written to a well-known local path so neither s
 needs a login/hand-off endpoint to learn it.
 """
 
+import getpass
 import logging
 import os
 import secrets
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -39,11 +41,18 @@ def load_or_create_access_token(path: Path | str | None = None) -> str:
     token_path.parent.mkdir(parents=True, exist_ok=True)
 
     if token_path.exists():
-        _warn_if_unprotected_on_windows(token_path)
+        if _IS_WINDOWS:
+            # Idempotent; also tightens tokens created by an older version.
+            _restrict_to_owner(token_path)
         return token_path.read_text(encoding="utf-8").strip()
 
     token = secrets.token_urlsafe(32)
-    token_path.write_text(token, encoding="utf-8")
+    # Created with 0o600 from the start (O_EXCL: never follow/replace an existing file),
+    # so there is no window in which the token is readable by other users. The mode
+    # argument is ignored on Windows; _restrict_to_owner covers that below.
+    fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as token_file:
+        token_file.write(token)
     _restrict_to_owner(token_path)
     return token
 
@@ -54,27 +63,46 @@ def _restrict_to_owner(path: Path) -> None:
     POSIX (macOS/Linux): chmod 0o600.
 
     Windows: `os.chmod` can only toggle the read-only flag there - it has no notion of
-    group/other permission bits, so 0o600 would silently do nothing useful. Access is
-    instead governed by NTFS ACLs, and the default token location
-    (%USERPROFILE%\\.tide-trader\\access-token) inherits the user profile's ACL, which
-    already grants access only to that user, SYSTEM and Administrators - the
-    equivalent of 0o600 plus root on POSIX. So nothing extra is done on Windows.
+    group/other permission bits - so access is governed by NTFS ACLs instead. We reset
+    the file's ACL with `icacls` to remove inherited entries and grant only the current
+    user. If that fails (or the user can't be determined), fall back to a warning so a
+    token outside the user profile is never silently left exposed.
     """
-    if _IS_WINDOWS:
-        _warn_if_unprotected_on_windows(path)
+    if not _IS_WINDOWS:
+        os.chmod(path, 0o600)
         return
-    os.chmod(path, 0o600)
+
+    if _restrict_to_owner_windows(path):
+        return
+    _warn_if_unprotected_on_windows(path)
+
+
+def _restrict_to_owner_windows(path: Path) -> bool:
+    """Apply an owner-only ACL via icacls. Returns True if it succeeded."""
+    try:
+        user = getpass.getuser()
+        # Fixed argv, no shell, so the path/user are never shell-interpreted.
+        subprocess.run(  # nosec B603 B607
+            ["icacls", str(path), "/inheritance:r", "/grant:r", f"{user}:F"],
+            check=True,
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("Could not restrict %s to its owner with icacls: %s", path, exc)
+        return False
+    return True
 
 
 def _warn_if_unprotected_on_windows(path: Path) -> None:
-    """Warn (on every startup, not just first creation) if the token sits outside the
-    user profile on Windows, where this app cannot restrict its permissions."""
+    """Warn if the token sits outside the user profile on Windows, where its permissions
+    are then not under this app's control (and icacls hardening failed or was skipped)."""
     if not _IS_WINDOWS or _is_within_home(path):
         return
     logger.warning(
         "Access token at %s is outside your user profile. On Windows its permissions "
-        "are not restricted by this app and may be readable by other users; keep it "
-        'under %%USERPROFILE%% or run: icacls "%s" /inheritance:r /grant:r "%%USERNAME%%:F"',
+        "may be readable by other users; keep it under %%USERPROFILE%% or run: "
+        'icacls "%s" /inheritance:r /grant:r "%%USERNAME%%:F"',
         path,
         path,
     )
