@@ -38,28 +38,16 @@ def test_token_file_is_created_with_owner_only_permissions(tmp_path):
     assert mode == 0o600
 
 
-def test_restrict_to_owner_chmods_0o600_on_posix(tmp_path, monkeypatch):
-    target = tmp_path / "file"
-    target.write_text("x", encoding="utf-8")
-    calls = []
-    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", False)
-    monkeypatch.setattr(access_token_module.os, "chmod", lambda path, mode: calls.append((path, mode)))
-
-    access_token_module._restrict_to_owner(target)
-
-    assert calls == [(target, 0o600)]
-
-
 def test_restrict_to_owner_skips_chmod_on_windows(tmp_path, monkeypatch):
     target = tmp_path / "file"
     target.write_text("x", encoding="utf-8")
-    calls = []
+    target.chmod(0o644)
     monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
-    monkeypatch.setattr(access_token_module.os, "chmod", lambda path, mode: calls.append((path, mode)))
 
     access_token_module._restrict_to_owner(target)
 
-    assert calls == []
+    # Untouched: no chmod happens on the Windows branch.
+    assert stat.S_IMODE(target.stat().st_mode) == 0o644
 
 
 def test_restrict_to_owner_warns_on_windows_outside_home(tmp_path, monkeypatch, caplog):
@@ -70,6 +58,32 @@ def test_restrict_to_owner_warns_on_windows_outside_home(tmp_path, monkeypatch, 
 
     with caplog.at_level("WARNING"):
         access_token_module._restrict_to_owner(target)
+
+    assert "outside your user profile" in caplog.text
+
+
+def test_warning_text_formats_icacls_hint_correctly(tmp_path, monkeypatch, caplog):
+    target = tmp_path / "my dir" / "file"
+    target.parent.mkdir()
+    target.write_text("x", encoding="utf-8")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
+    monkeypatch.setattr(access_token_module.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+
+    with caplog.at_level("WARNING"):
+        access_token_module._restrict_to_owner(target)
+
+    assert f'icacls "{target}" /inheritance:r /grant:r "%USERNAME%:F"' in caplog.text
+    assert "keep it under %USERPROFILE%" in caplog.text
+
+
+def test_existing_token_outside_home_still_warns_on_windows(tmp_path, monkeypatch, caplog):
+    target = tmp_path / "access-token"
+    target.write_text("tok", encoding="utf-8")
+    monkeypatch.setattr(access_token_module, "_IS_WINDOWS", True)
+    monkeypatch.setattr(access_token_module.Path, "home", classmethod(lambda cls: tmp_path / "home"))
+
+    with caplog.at_level("WARNING"):
+        assert load_or_create_access_token(target) == "tok"
 
     assert "outside your user profile" in caplog.text
 

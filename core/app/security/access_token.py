@@ -39,6 +39,7 @@ def load_or_create_access_token(path: Path | str | None = None) -> str:
     token_path.parent.mkdir(parents=True, exist_ok=True)
 
     if token_path.exists():
+        _warn_if_unprotected_on_windows(token_path)
         return token_path.read_text(encoding="utf-8").strip()
 
     token = secrets.token_urlsafe(32)
@@ -60,17 +61,23 @@ def _restrict_to_owner(path: Path) -> None:
     equivalent of 0o600 plus root on POSIX. So nothing extra is done on Windows.
     """
     if _IS_WINDOWS:
-        if not _is_within_home(path):
-            logger.warning(
-                "Access token written to %s, outside your user profile. On Windows its "
-                "permissions are not restricted by this app and may be readable by other "
-                "users; keep it under %%USERPROFILE%% or run: "
-                'icacls "%s" /inheritance:r /grant:r "%%USERNAME%%:F"',
-                path,
-                path,
-            )
+        _warn_if_unprotected_on_windows(path)
         return
     os.chmod(path, 0o600)
+
+
+def _warn_if_unprotected_on_windows(path: Path) -> None:
+    """Warn (on every startup, not just first creation) if the token sits outside the
+    user profile on Windows, where this app cannot restrict its permissions."""
+    if not _IS_WINDOWS or _is_within_home(path):
+        return
+    logger.warning(
+        "Access token at %s is outside your user profile. On Windows its permissions "
+        "are not restricted by this app and may be readable by other users; keep it "
+        'under %%USERPROFILE%% or run: icacls "%s" /inheritance:r /grant:r "%%USERNAME%%:F"',
+        path,
+        path,
+    )
 
 
 def _is_within_home(path: Path) -> bool:

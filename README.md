@@ -97,7 +97,9 @@ isn't meant to be reachable from anything but the desktop app on the same
 machine. On first run it generates a shared access token at
 `~/.tide-trader/access-token` (owner-read-only; on Windows
 `%USERPROFILE%\.tide-trader\access-token`, protected by your user profile's
-default permissions) that the desktop app reads to
+default permissions; if you set `TIDE_TRADER_ACCESS_TOKEN_PATH` to a location outside your
+profile, locking it down is your responsibility — the backend logs a warning with an
+`icacls` command) that the desktop app reads to
 authenticate its requests — no login system, just a check that the caller is
 this laptop's own Electron app. Your Alpaca API Key ID/Secret are **not**
 configured via `.env` — you connect them at runtime (see below); the backend
