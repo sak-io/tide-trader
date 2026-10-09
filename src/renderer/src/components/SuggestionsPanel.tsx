@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { Suggestion } from '../../../shared/types'
+import type { Suggestion, SuggestionOutcome, SuggestionPerformance } from '../../../shared/types'
 
 const DOWNLOAD_RANGES: { label: string; hours: number | undefined }[] = [
   { label: '24h', hours: 24 },
@@ -8,8 +8,28 @@ const DOWNLOAD_RANGES: { label: string; hours: number | undefined }[] = [
   { label: 'All', hours: undefined }
 ]
 
+const OUTCOME_LABELS: Record<SuggestionOutcome, string> = {
+  open: 'Open',
+  target_hit: 'Target hit',
+  stopped: 'Stopped out',
+  expired: 'Expired'
+}
+
+const REFRESH_INTERVAL_MS = 60_000
+
+function formatPct(value: number | null): string {
+  if (value === null) return '—'
+  return `${value > 0 ? '+' : ''}${value.toFixed(1)}%`
+}
+
+function returnClass(value: number | null): string {
+  if (value === null || value === 0) return ''
+  return value > 0 ? 'return-positive' : 'return-negative'
+}
+
 export default function SuggestionsPanel(): JSX.Element {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
+  const [performance, setPerformance] = useState<SuggestionPerformance | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
@@ -22,6 +42,12 @@ export default function SuggestionsPanel(): JSX.Element {
       try {
         const data = await window.alpaca.listSuggestions('pending')
         if (!cancelled) setSuggestions(data)
+        try {
+          const summary = await window.alpaca.getSuggestionPerformance()
+          if (!cancelled) setPerformance(summary)
+        } catch {
+          // The summary is supplementary - never block the list on it.
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load suggestions')
       } finally {
@@ -30,6 +56,8 @@ export default function SuggestionsPanel(): JSX.Element {
     }
 
     load()
+    // Outcomes are resolved server-side every scan cycle; poll to pick them up.
+    const refresh = setInterval(load, REFRESH_INTERVAL_MS)
 
     const unsubscribe = window.alpaca.onNewSuggestion((incoming) => {
       setSuggestions((current) => {
@@ -41,6 +69,7 @@ export default function SuggestionsPanel(): JSX.Element {
 
     return () => {
       cancelled = true
+      clearInterval(refresh)
       unsubscribe()
     }
   }, [])
@@ -92,6 +121,21 @@ export default function SuggestionsPanel(): JSX.Element {
         </div>
       </div>
 
+      {performance && performance.total > 0 && (
+        <div className="performance-strip" aria-label="Hypothetical performance">
+          <span>{performance.total} tracked</span>
+          <span>{performance.open} open</span>
+          <span>{performance.targetHit} hit target</span>
+          <span>{performance.stopped} stopped</span>
+          <span>
+            Win rate {performance.winRatePct === null ? '—' : `${performance.winRatePct.toFixed(0)}%`}
+          </span>
+          <span className={returnClass(performance.avgReturnPct)}>
+            Avg {formatPct(performance.avgReturnPct)}
+          </span>
+        </div>
+      )}
+
       {downloadMessage && <div className="loading-row">{downloadMessage}</div>}
       {error && <div className="error-banner">{error}</div>}
       {loading && !error && <div className="loading-row">Loading suggestions…</div>}
@@ -111,6 +155,15 @@ export default function SuggestionsPanel(): JSX.Element {
                 </span>
                 <span className="suggestion-price">${suggestion.price.toFixed(2)}</span>
                 <span className="suggestion-score">Score {Math.round(suggestion.score)}</span>
+              </div>
+
+              <div className="suggestion-plan">
+                <span>Stop {suggestion.stopPrice === null ? '—' : `$${suggestion.stopPrice.toFixed(2)}`}</span>
+                <span>Target {suggestion.targetPrice === null ? '—' : `$${suggestion.targetPrice.toFixed(2)}`}</span>
+                <span className={`outcome-badge outcome-${suggestion.outcome}`}>
+                  {OUTCOME_LABELS[suggestion.outcome]}
+                </span>
+                <span className={returnClass(suggestion.returnPct)}>{formatPct(suggestion.returnPct)}</span>
               </div>
 
               <div className="suggestion-sources">

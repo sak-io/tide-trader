@@ -683,3 +683,43 @@ body {
 .watchlist-row .symbol {
   font-weight: 600;
 }
+
+.performance-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.suggestion-plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.outcome-badge {
+  padding: 1px 8px;
+  border-radius: 10px;
+  border: 1px solid currentColor;
+}
+
+.outcome-target_hit,
+.return-positive {
+  color: #3fb950;
+}
+
+.outcome-stopped,
+.return-negative {
+  color: #f85149;
+}
+
+.outcome-open,
+.outcome-expired {
+  color: #8b949e;
+}

@@ -99,6 +99,18 @@ export type SignalDirection = 'bullish' | 'bearish'
 
 export type SuggestionStatus = 'pending' | 'dismissed'
 
+export type SuggestionOutcome = 'open' | 'target_hit' | 'stopped' | 'expired'
+
+export interface SuggestionPerformance {
+  total: number
+  open: number
+  targetHit: number
+  stopped: number
+  expired: number
+  winRatePct: number | null
+  avgReturnPct: number | null
+}
+
 export interface SuggestionIndicators {
   smaFast: number
   smaSlow: number
@@ -117,6 +129,13 @@ export interface Suggestion {
   direction: SignalDirection
   price: number
   score: number
+  stopPrice: number | null
+  targetPrice: number | null
+  outcome: SuggestionOutcome
+  outcomePrice: number | null
+  outcomeAt: string | null
+  lastPrice: number | null
+  returnPct: number | null
   indicators: SuggestionIndicators
   triggeredRules: string[]
   sources: SignalSource[]

@@ -12,6 +12,8 @@ import type {
   SaveCredentialsResult,
   Suggestion,
   SuggestionIndicators,
+  SuggestionOutcome,
+  SuggestionPerformance,
   SuggestionStatus,
   WatchlistItem
 } from '../shared/types'
@@ -149,6 +151,13 @@ interface RawSuggestion {
   direction: Suggestion['direction']
   price: number
   score: number
+  stop_price: number | null
+  target_price: number | null
+  outcome: SuggestionOutcome
+  outcome_price: number | null
+  outcome_at: string | null
+  last_price: number | null
+  return_pct: number | null
   indicators: RawSuggestionIndicators
   triggered_rules: string[]
   sources: Suggestion['sources']
@@ -174,6 +183,13 @@ function toSuggestion(raw: RawSuggestion): Suggestion {
     direction: raw.direction,
     price: raw.price,
     score: raw.score,
+    stopPrice: raw.stop_price,
+    targetPrice: raw.target_price,
+    outcome: raw.outcome,
+    outcomePrice: raw.outcome_price,
+    outcomeAt: raw.outcome_at,
+    lastPrice: raw.last_price,
+    returnPct: raw.return_pct,
     indicators: toSuggestionIndicators(raw.indicators),
     triggeredRules: raw.triggered_rules,
     sources: raw.sources,
@@ -187,6 +203,29 @@ function toSuggestion(raw: RawSuggestion): Suggestion {
 export async function fetchSuggestions(status: SuggestionStatus | 'all' = 'pending'): Promise<Suggestion[]> {
   const raw = await backendRequest<RawSuggestion[]>(`/api/v1/suggestions?status=${status}`)
   return raw.map(toSuggestion)
+}
+
+interface RawSuggestionPerformance {
+  total: number
+  open: number
+  target_hit: number
+  stopped: number
+  expired: number
+  win_rate_pct: number | null
+  avg_return_pct: number | null
+}
+
+export async function fetchSuggestionPerformance(): Promise<SuggestionPerformance> {
+  const raw = await backendRequest<RawSuggestionPerformance>('/api/v1/suggestions/performance')
+  return {
+    total: raw.total,
+    open: raw.open,
+    targetHit: raw.target_hit,
+    stopped: raw.stopped,
+    expired: raw.expired,
+    winRatePct: raw.win_rate_pct,
+    avgReturnPct: raw.avg_return_pct
+  }
 }
 
 export async function dismissSuggestion(id: number): Promise<Suggestion> {

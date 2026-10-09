@@ -14,6 +14,7 @@ import type {
   SaveCredentialsResult,
   StreamStatus,
   Suggestion,
+  SuggestionPerformance,
   SuggestionStatus,
   TradeUpdate,
   WatchlistItem
@@ -40,6 +41,8 @@ const api = {
 
   listSuggestions: (status?: SuggestionStatus | 'all'): Promise<Suggestion[]> =>
     ipcRenderer.invoke('suggestions:list', status),
+  getSuggestionPerformance: (): Promise<SuggestionPerformance> =>
+    ipcRenderer.invoke('suggestions:performance'),
   dismissSuggestion: (id: number): Promise<Suggestion> => ipcRenderer.invoke('suggestions:dismiss', id),
   exportSuggestions: (hours?: number): Promise<ExportSuggestionsResult> =>
     ipcRenderer.invoke('suggestions:export', hours),

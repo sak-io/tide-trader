@@ -13,6 +13,13 @@ const suggestion: Suggestion = {
   direction: 'bullish',
   price: 190.5,
   score: 82,
+  stopPrice: 185,
+  targetPrice: 199,
+  outcome: 'open',
+  outcomePrice: null,
+  outcomeAt: null,
+  lastPrice: 192,
+  returnPct: 0.8,
   indicators: { smaFast: 105, smaSlow: 102, rsi14: 55, volumeRatio: 1.8 },
   triggeredRules: ['golden_cross_sma20_sma50'],
   sources: ['watchlist'],
@@ -24,6 +31,7 @@ const suggestion: Suggestion = {
 
 type SuggestionsApi = {
   listSuggestions: ReturnType<typeof vi.fn>
+  getSuggestionPerformance: ReturnType<typeof vi.fn>
   dismissSuggestion: ReturnType<typeof vi.fn>
   exportSuggestions: ReturnType<typeof vi.fn>
   onNewSuggestion: ReturnType<typeof vi.fn>
@@ -33,6 +41,9 @@ describe('SuggestionsPanel', () => {
   beforeEach(() => {
     ;(window as unknown as { alpaca: SuggestionsApi }).alpaca = {
       listSuggestions: vi.fn().mockResolvedValue([]),
+      getSuggestionPerformance: vi.fn().mockResolvedValue({
+        total: 0, open: 0, targetHit: 0, stopped: 0, expired: 0, winRatePct: null, avgReturnPct: null
+      }),
       dismissSuggestion: vi.fn(),
       exportSuggestions: vi.fn(),
       onNewSuggestion: vi.fn().mockReturnValue(() => {})
@@ -55,6 +66,44 @@ describe('SuggestionsPanel', () => {
 
     await waitFor(() => expect(window.alpaca.dismissSuggestion).toHaveBeenCalledWith(1))
     expect(screen.queryByText('AAPL')).not.toBeInTheDocument()
+  })
+
+  it('shows stop, target, outcome and live return for a suggestion', async () => {
+    window.alpaca.listSuggestions = vi.fn().mockResolvedValue([
+      suggestion,
+      { ...suggestion, id: 2, symbol: 'MSFT', outcome: 'stopped', outcomePrice: 185, returnPct: -2.9 }
+    ])
+
+    render(<SuggestionsPanel />)
+    await screen.findByText('AAPL')
+
+    expect(screen.getAllByText('Stop $185.00')).toHaveLength(2)
+    expect(screen.getAllByText('Target $199.00')).toHaveLength(2)
+    expect(screen.getByText('Open')).toBeInTheDocument()
+    expect(screen.getByText('+0.8%')).toBeInTheDocument()
+    expect(screen.getByText('Stopped out')).toBeInTheDocument()
+    expect(screen.getByText('-2.9%')).toHaveClass('return-negative')
+  })
+
+  it('shows the performance summary once suggestions are tracked', async () => {
+    window.alpaca.getSuggestionPerformance = vi.fn().mockResolvedValue({
+      total: 4, open: 1, targetHit: 2, stopped: 1, expired: 0, winRatePct: 66.7, avgReturnPct: 3.2
+    })
+
+    render(<SuggestionsPanel />)
+
+    expect(await screen.findByText('4 tracked')).toBeInTheDocument()
+    expect(screen.getByText('Win rate 67%')).toBeInTheDocument()
+    expect(screen.getByText('Avg +3.2%')).toBeInTheDocument()
+  })
+
+  it('still lists suggestions when the performance summary fails', async () => {
+    window.alpaca.listSuggestions = vi.fn().mockResolvedValue([suggestion])
+    window.alpaca.getSuggestionPerformance = vi.fn().mockRejectedValue(new Error('nope'))
+
+    render(<SuggestionsPanel />)
+
+    expect(await screen.findByText('AAPL')).toBeInTheDocument()
   })
 
   it('downloads the last 24h with the correct hours value and shows the saved path', async () => {

@@ -12,6 +12,7 @@ import {
   fetchBars,
   fetchMostActive,
   fetchMovers,
+  fetchSuggestionPerformance,
   fetchSuggestions,
   fetchWatchlist,
   getAlpacaStatus,
@@ -149,6 +150,7 @@ function registerIpcHandlers(): void {
   )
 
   ipcMain.handle('suggestions:list', (_event, status?: SuggestionStatus | 'all') => fetchSuggestions(status))
+  ipcMain.handle('suggestions:performance', () => fetchSuggestionPerformance())
   ipcMain.handle('suggestions:dismiss', (_event, id: number) => dismissSuggestion(id))
 
   ipcMain.handle('suggestions:export', async (_event, hours?: number): Promise<ExportSuggestionsResult> => {
