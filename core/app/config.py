@@ -4,7 +4,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        # Explicit, so .env is read the same way everywhere - Windows' default locale
+        # encoding (e.g. cp1252) would otherwise be used there.
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     alpaca_paper: bool = True
 

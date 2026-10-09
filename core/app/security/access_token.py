@@ -7,6 +7,7 @@ needs a login/hand-off endpoint to learn it.
 
 import os
 import secrets
+import sys
 from pathlib import Path
 
 from fastapi import HTTPException, Request, status
@@ -25,7 +26,7 @@ def _default_token_path() -> Path:
 def load_or_create_access_token(path: Path | str | None = None) -> str:
     """Return the shared access token at `path`, generating and persisting one on first run.
 
-    The token is written with 0o600 permissions (owner read/write only) since anyone
+    The token file is restricted to its owner (see `_restrict_to_owner`) since anyone
     who can read it can call every trading endpoint this backend exposes.
     """
     token_path = Path(path) if path is not None else _default_token_path()
@@ -36,8 +37,25 @@ def load_or_create_access_token(path: Path | str | None = None) -> str:
 
     token = secrets.token_urlsafe(32)
     token_path.write_text(token, encoding="utf-8")
-    os.chmod(token_path, 0o600)
+    _restrict_to_owner(token_path)
     return token
+
+
+def _restrict_to_owner(path: Path) -> None:
+    """Make `path` readable/writable by its owner only.
+
+    POSIX (macOS/Linux): chmod 0o600.
+
+    Windows: `os.chmod` can only toggle the read-only flag there - it has no notion of
+    group/other permission bits, so 0o600 would silently do nothing useful. Access is
+    instead governed by NTFS ACLs, and the default token location
+    (%USERPROFILE%\\.tide-trader\\access-token) inherits the user profile's ACL, which
+    already grants access only to that user, SYSTEM and Administrators - the
+    equivalent of 0o600 plus root on POSIX. So nothing extra is done on Windows.
+    """
+    if sys.platform == "win32":
+        return
+    os.chmod(path, 0o600)
 
 
 def require_access_token(request: Request) -> None:

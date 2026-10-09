@@ -1,9 +1,11 @@
 import stat
+import sys
 from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
+from app.security import access_token as access_token_module
 from app.security.access_token import load_or_create_access_token, require_access_token
 
 
@@ -26,6 +28,7 @@ def test_reuses_the_same_token_on_subsequent_calls(tmp_path):
     assert first == second
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows uses NTFS ACLs, not POSIX permission bits")
 def test_token_file_is_created_with_owner_only_permissions(tmp_path):
     token_path = tmp_path / "access-token"
 
@@ -33,6 +36,40 @@ def test_token_file_is_created_with_owner_only_permissions(tmp_path):
 
     mode = stat.S_IMODE(token_path.stat().st_mode)
     assert mode == 0o600
+
+
+def test_restrict_to_owner_chmods_0o600_on_posix(tmp_path, monkeypatch):
+    target = tmp_path / "file"
+    target.write_text("x", encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(access_token_module.sys, "platform", "linux")
+    monkeypatch.setattr(access_token_module.os, "chmod", lambda path, mode: calls.append((path, mode)))
+
+    access_token_module._restrict_to_owner(target)
+
+    assert calls == [(target, 0o600)]
+
+
+def test_restrict_to_owner_skips_chmod_on_windows(tmp_path, monkeypatch):
+    target = tmp_path / "file"
+    target.write_text("x", encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(access_token_module.sys, "platform", "win32")
+    monkeypatch.setattr(access_token_module.os, "chmod", lambda path, mode: calls.append((path, mode)))
+
+    access_token_module._restrict_to_owner(target)
+
+    assert calls == []
+
+
+def test_token_is_created_and_reused_when_running_as_windows(tmp_path, monkeypatch):
+    monkeypatch.setattr(access_token_module.sys, "platform", "win32")
+    token_path = tmp_path / "access-token"
+
+    token = load_or_create_access_token(token_path)
+
+    assert token_path.read_text(encoding="utf-8") == token
+    assert load_or_create_access_token(token_path) == token
 
 
 def test_creates_parent_directories_if_needed(tmp_path):
