@@ -14,8 +14,12 @@ concurrency:
 
 jobs:
   backend-tests:
-    name: Backend tests (Python)
-    runs-on: ubuntu-latest
+    name: Backend tests (Python, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     defaults:
       run:
         working-directory: core
@@ -46,8 +50,12 @@ jobs:
         run: uv run pytest --cov=app --cov-report=term-missing
 
   frontend-build:
-    name: Frontend tests + typecheck + build (Electron)
-    runs-on: ubuntu-latest
+    name: Frontend tests + typecheck + build (Electron, ${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 

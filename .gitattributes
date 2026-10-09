@@ -1,0 +1,14 @@
+# Normalize line endings so a Windows checkout (core.autocrlf=true) produces the
+# same files as macOS/Linux - keeps lockfiles, Python/TS sources and shell-style
+# configs byte-identical across platforms.
+* text=auto eol=lf
+
+# Windows-only scripts, if any are ever added, should keep CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.db binary
