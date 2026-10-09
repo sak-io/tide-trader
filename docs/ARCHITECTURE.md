@@ -143,8 +143,8 @@ somewhere it could leak from.
   generates `secrets.token_urlsafe(32)` and writes it to
   `~/.tide-trader/access-token` (`0o600`; on Windows,
   `%USERPROFILE%\.tide-trader\access-token`, where `chmod` can't express
-  owner-only access and the file instead relies on the user profile's NTFS ACL,
-  which already limits it to that user, SYSTEM and Administrators). Electron reads the same
+  owner-only access, so the backend runs `icacls /inheritance:r /grant:r <your SID>:(R,W)`
+  on it at startup, leaving your account as the only principal on the file's ACL). Electron reads the same
   well-known path and sends it as `Authorization: Bearer <token>` on every
   request. This is not a user-identity system — it's a single shared secret
   answering "is the caller our own Electron app," so no other local process
