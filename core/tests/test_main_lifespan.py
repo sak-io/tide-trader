@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi.testclient import TestClient
 
 import app.main as main_module
@@ -97,5 +99,68 @@ def test_routes_return_401_without_a_valid_access_token(tmp_path, monkeypatch):
             client.get("/api/v1/market/most-active"),
             client.post("/api/v1/orders", json={"symbol": "AAPL", "qty": 1, "side": "buy"}),
             client.get("/api/v1/alpaca/status"),
+            client.get("/api/v1/suggestions"),
+            client.get("/api/v1/watchlist"),
         ):
             assert response.status_code == 401
+
+
+class FakeScanLoop:
+    def __init__(self, *args, **kwargs):
+        del args, kwargs
+        self.run_forever_called = False
+        self.cancelled = False
+
+    async def run_forever(self) -> None:
+        self.run_forever_called = True
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled = True
+            raise
+
+
+def test_lifespan_starts_and_stops_the_suggestion_scan_loop_when_enabled(tmp_path, monkeypatch):
+    dummy_settings = Settings(db_path=str(tmp_path / "state.db"), enable_suggestion_scanner=True)
+    monkeypatch.setattr(main_module, "get_settings", lambda: dummy_settings)
+
+    created_loops: list[FakeScanLoop] = []
+
+    def fake_scan_loop_factory(*args, **kwargs):
+        loop = FakeScanLoop(*args, **kwargs)
+        created_loops.append(loop)
+        return loop
+
+    monkeypatch.setattr(main_module, "SuggestionScanLoop", fake_scan_loop_factory)
+
+    app = main_module.create_app()
+
+    with TestClient(app):
+        assert len(created_loops) == 1
+        assert created_loops[0].run_forever_called is True
+
+    assert created_loops[0].cancelled is True
+
+
+def test_lifespan_does_not_start_the_suggestion_scan_loop_when_disabled(tmp_path, monkeypatch):
+    dummy_settings = Settings(db_path=str(tmp_path / "state.db"), enable_suggestion_scanner=False)
+    monkeypatch.setattr(main_module, "get_settings", lambda: dummy_settings)
+
+    created_loops: list[FakeScanLoop] = []
+
+    def fake_scan_loop_factory(*args, **kwargs):
+        loop = FakeScanLoop(*args, **kwargs)
+        created_loops.append(loop)
+        return loop
+
+    monkeypatch.setattr(main_module, "SuggestionScanLoop", fake_scan_loop_factory)
+
+    app = main_module.create_app()
+
+    with TestClient(app):
+        pass
+
+    # The loop object is still constructed (cheap, no I/O) - only starting it as a
+    # background task is gated on enable_suggestion_scanner.
+    assert len(created_loops) == 1
+    assert created_loops[0].run_forever_called is False

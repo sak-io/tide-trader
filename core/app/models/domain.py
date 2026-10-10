@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
@@ -121,3 +121,95 @@ class AlpacaConnectRequest(BaseModel):
 
 class AlpacaStatus(BaseModel):
     connected: bool
+
+
+class SignalSource(StrEnum):
+    alpaca = "alpaca"
+    watchlist = "watchlist"
+
+
+class SignalDirection(StrEnum):
+    bullish = "bullish"
+    bearish = "bearish"
+
+
+class IndicatorSnapshot(BaseModel):
+    sma_fast: float
+    sma_slow: float
+    rsi14: float
+    volume_ratio: float
+
+
+class Signal(BaseModel):
+    symbol: str
+    direction: SignalDirection
+    price: float
+    score: float
+    stop_price: float | None = None
+    target_price: float | None = None
+    bar_date: date | None = None  # date of the daily bar the signal fired on
+    indicators: IndicatorSnapshot
+    triggered_rules: list[str]
+    sources: list[SignalSource]
+    generated_at: datetime
+
+
+class SuggestionStatus(StrEnum):
+    pending = "pending"
+    dismissed = "dismissed"
+
+
+class SuggestionOutcome(StrEnum):
+    open = "open"
+    target_hit = "target_hit"
+    stopped = "stopped"
+    expired = "expired"
+
+
+class Suggestion(BaseModel):
+    id: int
+    symbol: str
+    direction: SignalDirection
+    price: float
+    score: float
+    stop_price: float | None = None
+    target_price: float | None = None
+    bar_date: date | None = None
+    outcome: SuggestionOutcome = SuggestionOutcome.open
+    outcome_price: float | None = None
+    outcome_at: datetime | None = None
+    last_price: float | None = None
+    return_pct: float | None = None
+    indicators: IndicatorSnapshot
+    triggered_rules: list[str]
+    sources: list[SignalSource]
+    rationale: str | None = None
+    status: SuggestionStatus
+    generated_at: datetime
+    updated_at: datetime
+
+
+class WatchlistItem(BaseModel):
+    symbol: str
+    added_at: datetime
+
+
+class WatchlistAddRequest(BaseModel):
+    symbol: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def normalize(self) -> "WatchlistAddRequest":
+        self.symbol = self.symbol.strip().upper()
+        return self
+
+
+class PerformanceSummary(BaseModel):
+    """Hypothetical results of all suggestions - nothing here was ever traded."""
+
+    total: int
+    open: int
+    target_hit: int
+    stopped: int
+    expired: int
+    win_rate_pct: float | None
+    avg_return_pct: float | None

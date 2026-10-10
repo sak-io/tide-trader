@@ -92,3 +92,11 @@ def test_from_credentials_constructs_real_clients_without_hitting_network():
     client = AlpacaMarketDataClient.from_credentials("key", "secret")
 
     assert isinstance(client, AlpacaMarketDataClient)
+
+
+def test_get_bars_multi_does_not_cap_total_bars_across_symbols():
+    # Alpaca's `limit` is a TOTAL across all symbols in a multi-symbol request, so a fixed
+    # limit starves later symbols (they come back empty and are silently skipped by the scanner).
+    client, bars_client = make_client()
+    client.get_bars_multi(["AAA", "BBB", "CCC"])
+    assert bars_client.last_request.limit is None

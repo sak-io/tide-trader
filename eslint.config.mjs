@@ -4,7 +4,11 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['out/**', 'dist/**', 'node_modules/**', 'coverage/**', 'core/**', '*.tsbuildinfo'] },
+  {
+    // .claude/** holds gitignored, transient agent worktrees (each with its own
+    // core/.venv, node_modules, etc.) - never this project's own source.
+    ignores: ['out/**', 'dist/**', 'node_modules/**', 'coverage/**', 'core/**', '.claude/**', '*.tsbuildinfo']
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

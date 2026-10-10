@@ -7,7 +7,9 @@ from app.dependencies import (
     get_market_data_client,
     get_market_data_hub,
     get_risk_manager,
+    get_suggestion_store,
     get_trade_adapter,
+    get_watchlist_store,
 )
 
 
@@ -49,3 +51,17 @@ def test_get_market_data_client_raises_503_when_not_connected():
         get_market_data_client(_fake_request(None))
     assert exc_info.value.status_code == 503
     assert "not connected" in exc_info.value.detail
+
+
+def test_get_watchlist_store_reads_from_app_state():
+    fake_request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(watchlist_store="watchlist-sentinel"))
+    )
+    assert get_watchlist_store(fake_request) == "watchlist-sentinel"
+
+
+def test_get_suggestion_store_reads_from_app_state():
+    fake_request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(suggestion_store="suggestion-sentinel"))
+    )
+    assert get_suggestion_store(fake_request) == "suggestion-sentinel"

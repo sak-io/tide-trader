@@ -23,6 +23,14 @@ class Settings(BaseSettings):
 
     db_path: str = "./tide_trader_state.db"
 
+    scan_interval_seconds: int = 300
+    scan_min_score: float = 60.0
+    scan_most_active_top: int = 10
+    scan_movers_top: int = 10
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-haiku-5-5"
+    enable_suggestion_scanner: bool = True
+
     @property
     def cors_origins(self) -> list[str]:
         return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]

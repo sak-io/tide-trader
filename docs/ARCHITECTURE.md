@@ -108,6 +108,24 @@ that need materializes, this is the natural next thing to unify.
   `state_store.py` (the SQLite persistence underneath it). Deliberately
   separated: the risk manager holds policy, the state store holds
   persistence, and neither needs to know the other's internals.
+- **Trade-suggestion agent** (`engine/screener.py`, `scan_loop.py`, `monitor.py`,
+  `rationale.py`, `suggestion_store.py`, `watchlist_store.py`) — a notify-only
+  background loop. It depends only on Alpaca *market data* and never imports
+  `AlpacaTradeAdapter` or `RiskManager`, so no code path can turn a suggestion
+  into an order. Design notes:
+  - Signals are computed on *completed* daily bars only (the in-progress bar is
+    dropped until 16:15 ET), and deduped by the date of the bar the crossover fired
+    on, so re-scanning on evenings/weekends never logs the same event twice; a
+    UNIQUE index on the dedupe key enforces it in SQLite.
+  - The monitor replays later daily bars against each suggestion's ATR stop/target.
+    A bar touching both resolves as stopped; a gap through the stop fills at the
+    open. These are conservative assumptions so the hypothetical stats aren't flattering.
+  - The synchronous Alpaca/SQLite work runs in a worker thread; only the Anthropic
+    call stays on the event loop, with a hard timeout.
+  - **Anthropic key trade-off:** the optional `ANTHROPIC_API_KEY` is read from
+    `.env` in plaintext, unlike the Alpaca keys, which are in-memory only. It can
+    only generate rationale text (it has no access to your brokerage), so the blast
+    radius is a spend limit on that key; leave it unset to run without it.
 - **`security/`** — `access_token.py` (the shared-secret check protecting
   every REST route except `/ws/live`) and `alpaca_session.py` (`AlpacaConnection`,
   the single in-memory slot holding the Alpaca Key ID/Secret and the
