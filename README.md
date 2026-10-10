@@ -18,6 +18,14 @@ safety-first execution backend, with no autonomous trading yet.
   full OHLCV.
 - **Realtime data**: trades, quotes, and minute bars stream in directly from
   Alpaca's IEX feed the moment you select a symbol.
+- **Trade-suggestion agent** (notify-only): a background scan of your watchlist
+  plus Alpaca's most-active/movers, scored by an SMA(20/50) crossover with RSI and
+  volume confirmation. Each suggestion carries an ATR-based stop and target, and is
+  tracked afterwards (target hit / stopped / expired) with a hypothetical win rate and
+  average return. It can never place an order. It starts once you connect an Alpaca
+  account (every 5 minutes by default); tune or disable it with the `SCAN_*` and
+  `ENABLE_SUGGESTION_SCANNER` settings in `core/.env.example`. Set `ANTHROPIC_API_KEY`
+  there if you also want a Claude-written rationale per suggestion.
 - **A Python backend** (`core/`) that wraps Alpaca's trading + market-data APIs
   behind a small FastAPI service: order placement, account/positions, a
   kill-switch and daily-loss-limit risk manager backed by SQLite (so it

@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 
 from app.engine.monitor import SuggestionMonitor, evaluate
@@ -164,3 +164,30 @@ def test_performance_endpoint(suggestions_api_client):
     response = client.get("/api/v1/suggestions/performance")
     assert response.status_code == 200
     assert response.json()["total"] == 1
+
+
+def _ohlc(day: int, open_: float, high: float, low: float, close: float) -> HistoricalBar:
+    return HistoricalBar(
+        timestamp=DAY0 + timedelta(days=day), open=open_, high=high, low=low, close=close, volume=1.0
+    )
+
+
+def test_gap_through_the_stop_fills_at_the_open_not_the_stop():
+    gap = _ohlc(1, open_=90.0, high=91.0, low=89.0, close=90.0)
+    outcome, price, _, _ = evaluate(_suggestion(), [gap], NOW)
+    assert (outcome, price) == (SuggestionOutcome.stopped, 90.0)
+
+    bearish = _suggestion(direction=SignalDirection.bearish, stop=105.0, target=90.0)
+    gap_up = _ohlc(1, open_=110.0, high=112.0, low=109.0, close=111.0)
+    assert evaluate(bearish, [gap_up], NOW)[:2] == (SuggestionOutcome.stopped, 110.0)
+
+
+def test_first_session_after_an_evening_signal_is_checked():
+    # Signal generated after 8pm ET on Sep 1 has a UTC date of Sep 2, but it fired on the
+    # Sep 1 bar - the Sep 2 session is the first one that must be replayed.
+    suggestion = _suggestion()
+    suggestion.generated_at = datetime(2026, 9, 2, 1, 30, tzinfo=UTC)
+    suggestion.bar_date = date(2026, 9, 1)
+    later = suggestion.generated_at + timedelta(days=1)
+    outcome, price, _, _ = evaluate(suggestion, [_bar(1, 94, 101)], later)
+    assert (outcome, price) == (SuggestionOutcome.stopped, 95.0)

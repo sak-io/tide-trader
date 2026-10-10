@@ -10,14 +10,16 @@ code path here that can place an order.
 
 import asyncio
 import logging
+import sqlite3
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from app.engine.monitor import SuggestionMonitor
 from app.engine.rationale import RationaleGenerator
-from app.engine.screener import build_scan_universe, detect_crossover_signal
+from app.engine.screener import build_scan_universe, detect_crossover_signal, drop_incomplete_bar
 from app.engine.suggestion_store import SuggestionStore
 from app.engine.watchlist_store import WatchlistStore
+from app.models.domain import Signal
 from app.security.alpaca_session import AlpacaConnection
 
 logger = logging.getLogger(__name__)
@@ -49,16 +51,17 @@ class SuggestionScanLoop:
         self._config = config or ScanLoopConfig()
         self._monitor = SuggestionMonitor(connection, suggestion_store)
 
-    async def run_once(self) -> None:
+    def _find_signals(self) -> list[Signal]:
+        """The synchronous half of a cycle: Alpaca REST + SQLite. Run off the event loop."""
         session = self._connection.get()
         if session is None:
             logger.info("Suggestion scan skipped: no Alpaca account connected.")
-            return
+            return []
 
         market_client = session.market_data_client
 
         try:
-            await asyncio.to_thread(self._monitor.run_once)
+            self._monitor.run_once()
         except Exception:
             logger.exception("Suggestion outcome monitoring failed; continuing with scan.")
 
@@ -69,24 +72,36 @@ class SuggestionScanLoop:
 
         candidates = build_scan_universe(watchlist_symbols, most_active, mover_symbols)
         if not candidates:
-            return
+            return []
 
         start = datetime.now(UTC) - timedelta(days=_BAR_HISTORY_DAYS)
         symbols = [candidate.symbol for candidate in candidates]
         bars_by_symbol = market_client.get_bars_multi(symbols, start=start)
 
+        signals = []
         for candidate in candidates:
-            signal = detect_crossover_signal(
-                candidate, bars_by_symbol.get(candidate.symbol, []), min_score=self._config.min_score
-            )
+            bars = drop_incomplete_bar(bars_by_symbol.get(candidate.symbol, []))
+            signal = detect_crossover_signal(candidate, bars, min_score=self._config.min_score)
             if signal is None:
                 continue
-
-            if self._suggestion_store.exists_for_today(signal.symbol, signal.direction.value):
+            day = (signal.bar_date or signal.generated_at.date()).isoformat()
+            if self._suggestion_store.exists_for_day(signal.symbol, signal.direction.value, day):
                 continue
+            signals.append(signal)
+        return signals
 
-            rationale = await self._rationale_generator.generate(signal)
+    def _persist(self, signal: Signal, rationale: str | None) -> None:
+        try:
             self._suggestion_store.create(signal, rationale)
+        except sqlite3.IntegrityError:
+            # Lost a race with another writer for the same symbol+direction+bar; already logged.
+            logger.info("Suggestion for %s %s already recorded.", signal.symbol, signal.direction.value)
+
+    async def run_once(self) -> None:
+        signals = await asyncio.to_thread(self._find_signals)
+        for signal in signals:
+            rationale = await self._rationale_generator.generate(signal)
+            await asyncio.to_thread(self._persist, signal, rationale)
 
     async def run_forever(self) -> None:
         while True:

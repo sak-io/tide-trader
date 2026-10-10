@@ -178,3 +178,18 @@ def test_export_rejects_non_positive_hours(suggestions_api_client):
     client, _ = suggestions_api_client
     response = client.get("/api/v1/suggestions/export?hours=0")
     assert response.status_code == 422
+
+
+def test_export_neutralizes_spreadsheet_formulas(suggestions_api_client):
+    client, store = suggestions_api_client
+    store.create(_signal(symbol="=CMD()"), rationale='=HYPERLINK("http://evil","x")')
+    store.create(_signal(symbol="MSFT"), rationale="+1+1")
+    store.create(_signal(symbol="TSLA", direction=SignalDirection.bearish), rationale="@SUM(A1)")
+
+    rows = list(csv.reader(io.StringIO(client.get("/api/v1/suggestions/export").text)))[1:]
+    by_symbol = {row[1].lstrip("'"): row for row in rows}
+
+    assert by_symbol["=CMD()"][1] == "'=CMD()"
+    assert by_symbol["=CMD()"][16].startswith("'=")
+    assert by_symbol["MSFT"][16] == "'+1+1"
+    assert by_symbol["TSLA"][16] == "'@SUM(A1)"

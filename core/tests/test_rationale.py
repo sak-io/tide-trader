@@ -54,6 +54,7 @@ async def test_generate_returns_none_when_the_response_has_no_text_block():
 
 async def test_anthropic_messages_client_delegates_to_the_sdk(monkeypatch):
     calls = []
+    created = []
 
     class _FakeMessages:
         async def create(self, *, model, max_tokens, messages):
@@ -61,8 +62,11 @@ async def test_anthropic_messages_client_delegates_to_the_sdk(monkeypatch):
             return "raw-response"
 
     class _FakeAsyncAnthropic:
-        def __init__(self, api_key):
+        def __init__(self, api_key, timeout=None, max_retries=None):
             self.api_key = api_key
+            self.timeout = timeout
+            self.max_retries = max_retries
+            created.append(self)
             self.messages = _FakeMessages()
 
     import app.engine.rationale as rationale_module
@@ -75,5 +79,34 @@ async def test_anthropic_messages_client_delegates_to_the_sdk(monkeypatch):
     )
 
     assert result == "raw-response"
+    assert created[0].timeout is not None and created[0].timeout <= 30
+    assert created[0].max_retries == 1
     assert calls == [("claude-opus-5", 10, [{"role": "user", "content": "hi"}])]
     assert isinstance(client, AnthropicMessagesClient)
+
+
+async def test_generate_gives_up_on_a_hung_request(monkeypatch):
+    import asyncio
+
+    import app.engine.rationale as rationale_module
+
+    class _HangingClient:
+        async def create_message(self, **kwargs):
+            await asyncio.sleep(3600)
+
+    monkeypatch.setattr(rationale_module, "_REQUEST_TIMEOUT_SECONDS", 0.01)
+    monkeypatch.setattr(rationale_module, "_TIMEOUT_GRACE_SECONDS", 0.0)
+    generator = RationaleGenerator(client=_HangingClient(), model="claude-haiku-5-5")
+
+    assert await asyncio.wait_for(generator.generate(_signal()), timeout=5) is None
+
+
+async def test_repeated_failures_only_log_a_traceback_once(caplog):
+    generator = RationaleGenerator(client=FakeAnthropicClient(should_raise=True), model="x")
+
+    await generator.generate(_signal())
+    await generator.generate(_signal())
+
+    with_traceback = [r for r in caplog.records if r.exc_info]
+    assert len(with_traceback) == 1
+    assert len(caplog.records) == 2

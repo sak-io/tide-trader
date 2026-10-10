@@ -27,7 +27,9 @@ def evaluate(
     max_age_days: int = MAX_AGE_DAYS,
 ) -> tuple[SuggestionOutcome, float | None, datetime | None, float | None]:
     """Returns (outcome, outcome_price, outcome_at, last_price)."""
-    signal_day = suggestion.generated_at.date()
+    # Compare against the bar the signal fired on, not the wall clock: a signal generated
+    # in the evening has a next-day UTC date but its first tradable session is still ahead.
+    signal_day = suggestion.bar_date or suggestion.generated_at.date()
     later = sorted((b for b in bars if b.timestamp.date() > signal_day), key=lambda b: b.timestamp)
     bullish = suggestion.direction == SignalDirection.bullish
     last_price = later[-1].close if later else None
@@ -35,7 +37,9 @@ def evaluate(
     stop, target = suggestion.stop_price, suggestion.target_price
     for bar in later:
         if stop is not None and (bar.low <= stop if bullish else bar.high >= stop):
-            return SuggestionOutcome.stopped, stop, bar.timestamp, last_price
+            # A gap through the stop fills at the open, not at the stop price.
+            fill = min(bar.open, stop) if bullish else max(bar.open, stop)
+            return SuggestionOutcome.stopped, fill, bar.timestamp, last_price
         if target is not None and (bar.high >= target if bullish else bar.low <= target):
             return SuggestionOutcome.target_hit, target, bar.timestamp, last_price
 

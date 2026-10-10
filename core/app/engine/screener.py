@@ -13,7 +13,8 @@ RSI and volume never trigger a signal by themselves, they only adjust its score.
 """
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time
+from zoneinfo import ZoneInfo
 
 from app.models.domain import (
     HistoricalBar,
@@ -37,6 +38,26 @@ _BEARISH_RSI_ZONE = (35.0, 55.0)
 _GAP_FULL_SCORE_PCT = 0.5
 
 _MIN_BARS_REQUIRED = _SMA_SLOW_PERIOD + 1
+
+_MARKET_TZ = ZoneInfo("America/New_York")
+# Daily bars for the current session are only final once the regular session has closed
+# (16:00 ET); the small margin covers late prints in the IEX feed.
+_SESSION_FINAL_AFTER = time(16, 15)
+
+
+def drop_incomplete_bar(bars: list[HistoricalBar], now: datetime | None = None) -> list[HistoricalBar]:
+    """Drop the current session's daily bar until the session has closed.
+
+    A mid-session bar has partial volume and a provisional close, so crossover, RSI and
+    especially the volume ratio computed on it can flip by the close. Daily bars are
+    stamped at midnight ET, i.e. their UTC date equals the ET trading date.
+    """
+    if not bars:
+        return bars
+    now_et = (now or datetime.now(UTC)).astimezone(_MARKET_TZ)
+    last_date = bars[-1].timestamp.date()
+    in_progress = last_date == now_et.date() and now_et.time() < _SESSION_FINAL_AFTER
+    return bars[:-1] if in_progress else bars
 
 
 def sma(values: list[float], period: int) -> float | None:
@@ -218,6 +239,7 @@ def detect_crossover_signal(
         score=score,
         stop_price=stop_price,
         target_price=target_price,
+        bar_date=bars[-1].timestamp.date(),
         indicators=IndicatorSnapshot(
             sma_fast=fast_now,
             sma_slow=slow_now,

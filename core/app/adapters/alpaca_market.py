@@ -100,8 +100,11 @@ class AlpacaMarketDataClient:
         timeframe: str = "1Day",
         start: datetime | None = None,
         end: datetime | None = None,
-        limit: int = 200,
+        limit: int | None = None,
     ) -> dict[str, list[HistoricalBar]]:
+        # `limit` caps the TOTAL number of data points across every symbol in a multi-symbol
+        # request (results are ordered by symbol), so a fixed per-symbol-sized limit silently
+        # starves later symbols. Leave it unset by default so alpaca-py paginates the full range.
         normalized_symbols = [symbol.strip().upper() for symbol in symbols]
         request = StockBarsRequest(
             symbol_or_symbols=normalized_symbols,

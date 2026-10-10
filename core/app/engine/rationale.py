@@ -8,6 +8,7 @@ results in `generate()` returning None, so a suggestion is still created/shown
 without a rationale rather than being dropped.
 """
 
+import asyncio
 import logging
 from typing import Any, Protocol
 
@@ -18,6 +19,8 @@ from app.models.domain import Signal
 logger = logging.getLogger(__name__)
 
 _MAX_TOKENS = 300
+_REQUEST_TIMEOUT_SECONDS = 20.0
+_TIMEOUT_GRACE_SECONDS = 5.0  # asyncio-level backstop beyond the SDK's own timeout
 
 
 class AnthropicClientProtocol(Protocol):
@@ -36,7 +39,9 @@ class AnthropicMessagesClient:
     """
 
     def __init__(self, api_key: str):
-        self._client = anthropic.AsyncAnthropic(api_key=api_key)
+        self._client = anthropic.AsyncAnthropic(
+            api_key=api_key, timeout=_REQUEST_TIMEOUT_SECONDS, max_retries=1
+        )
 
     async def create_message(self, *, model: str, max_tokens: int, messages: list[dict[str, Any]]) -> Any:
         return await self._client.messages.create(model=model, max_tokens=max_tokens, messages=messages)
@@ -64,21 +69,33 @@ class RationaleGenerator:
     def __init__(self, client: AnthropicClientProtocol | None, model: str):
         self._client = client
         self._model = model
+        self._failure_logged = False
 
     async def generate(self, signal: Signal) -> str | None:
         if self._client is None:
             return None
 
         try:
-            response = await self._client.create_message(
-                model=self._model,
-                max_tokens=_MAX_TOKENS,
-                messages=[{"role": "user", "content": _build_prompt(signal)}],
+            # Belt and braces on top of the client's own timeout: this call runs sequentially
+            # inside the scan loop, so one hung request must never stall the whole cycle.
+            response = await asyncio.wait_for(
+                self._client.create_message(
+                    model=self._model,
+                    max_tokens=_MAX_TOKENS,
+                    messages=[{"role": "user", "content": _build_prompt(signal)}],
+                ),
+                timeout=_REQUEST_TIMEOUT_SECONDS + _TIMEOUT_GRACE_SECONDS,
             )
             for block in getattr(response, "content", []):
                 if getattr(block, "type", None) == "text":
                     return block.text
             return None
-        except Exception:
-            logger.exception("Rationale generation failed for %s; continuing without one.", signal.symbol)
+        except Exception as error:
+            # Full traceback once; afterwards a one-line warning, so a bad key or model ID
+            # doesn't dump a traceback per signal every cycle.
+            if not self._failure_logged:
+                self._failure_logged = True
+                logger.exception("Rationale generation failed for %s; continuing without one.", signal.symbol)
+            else:
+                logger.warning("Rationale generation failed for %s: %r", signal.symbol, error)
             return None

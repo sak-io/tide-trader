@@ -192,3 +192,79 @@ async def test_run_forever_logs_and_continues_after_run_once_raises(
         await task
 
     assert call_count >= 2
+
+
+async def test_run_once_does_not_re_log_the_same_bar_after_the_utc_date_rolls_over(
+    watchlist_store, suggestion_store, monkeypatch
+):
+    from datetime import UTC, datetime
+
+    import app.engine.screener as screener_module
+
+    watchlist_store.add("AAPL")
+    market_client = _market_client([], [], [], {"AAPL": crossover_bars(direction="bullish")})
+    connection = FakeAlpacaConnection(session=SimpleNamespace(market_data_client=market_client))
+    loop = _loop(watchlist_store, suggestion_store, connection)
+
+    await loop.run_once()
+
+    class _Tomorrow(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2099, 1, 1, tzinfo=UTC)
+
+    monkeypatch.setattr(screener_module, "datetime", _Tomorrow)
+    await loop.run_once()  # same Friday bar, later wall-clock date
+
+    assert len(suggestion_store.list_all()) == 1
+
+
+async def test_run_once_runs_blocking_work_off_the_event_loop(watchlist_store, suggestion_store):
+    import threading
+
+    watchlist_store.add("AAPL")
+    market_client = _market_client([], [], [], {"AAPL": crossover_bars(direction="bullish")})
+    threads = []
+    original = market_client.get_most_active
+
+    def recording_get_most_active(top=10):
+        threads.append(threading.current_thread())
+        return original(top)
+
+    market_client.get_most_active = recording_get_most_active
+    connection = FakeAlpacaConnection(session=SimpleNamespace(market_data_client=market_client))
+
+    await _loop(watchlist_store, suggestion_store, connection).run_once()
+
+    assert threads and threads[0] is not threading.main_thread()
+
+
+async def test_a_monitor_failure_does_not_stop_the_scan(watchlist_store, suggestion_store, monkeypatch):
+    watchlist_store.add("AAPL")
+    market_client = _market_client([], [], [], {"AAPL": crossover_bars(direction="bullish")})
+    connection = FakeAlpacaConnection(session=SimpleNamespace(market_data_client=market_client))
+    loop = _loop(watchlist_store, suggestion_store, connection)
+
+    def boom():
+        raise RuntimeError("monitor down")
+
+    monkeypatch.setattr(loop._monitor, "run_once", boom)
+    await loop.run_once()
+
+    assert len(suggestion_store.list_all()) == 1
+
+
+async def test_losing_a_race_to_another_writer_is_not_an_error(watchlist_store, suggestion_store, monkeypatch):
+    watchlist_store.add("AAPL")
+    market_client = _market_client([], [], [], {"AAPL": crossover_bars(direction="bullish")})
+    connection = FakeAlpacaConnection(session=SimpleNamespace(market_data_client=market_client))
+    loop = _loop(watchlist_store, suggestion_store, connection)
+
+    # The row appears between the existence check and the insert.
+    signals = loop._find_signals()
+    suggestion_store.create(signals[0], None)
+    monkeypatch.setattr(loop, "_find_signals", lambda: signals)
+
+    await loop.run_once()
+
+    assert len(suggestion_store.list_all()) == 1

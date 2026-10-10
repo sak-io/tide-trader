@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, model_validator
@@ -147,6 +147,7 @@ class Signal(BaseModel):
     score: float
     stop_price: float | None = None
     target_price: float | None = None
+    bar_date: date | None = None  # date of the daily bar the signal fired on
     indicators: IndicatorSnapshot
     triggered_rules: list[str]
     sources: list[SignalSource]
@@ -173,6 +174,7 @@ class Suggestion(BaseModel):
     score: float
     stop_price: float | None = None
     target_price: float | None = None
+    bar_date: date | None = None
     outcome: SuggestionOutcome = SuggestionOutcome.open
     outcome_price: float | None = None
     outcome_at: datetime | None = None

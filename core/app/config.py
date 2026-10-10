@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     scan_most_active_top: int = 10
     scan_movers_top: int = 10
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-opus-5"
+    anthropic_model: str = "claude-haiku-5-5"
     enable_suggestion_scanner: bool = True
 
     @property

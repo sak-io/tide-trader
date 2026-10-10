@@ -4,7 +4,7 @@ Not a mutable queue: `create()` always inserts a new row, so buy and sell signal
 for the same symbol both persist as separate rows over time - this is what makes
 the CSV export meaningful as a hypothetical-performance log. `dedupe_key` only
 gates the scan loop from re-firing the same symbol+direction twice in a calendar
-day (via `exists_for_today`); it never deletes or collapses rows. `dismiss()` only
+bar date (via `exists_for_day`); it never deletes or collapses rows. `dismiss()` only
 flips status - the row stays forever.
 """
 
@@ -12,7 +12,7 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 from app.models.domain import (
@@ -52,7 +52,12 @@ _MIGRATION_COLUMNS = {
     "outcome_price": "REAL",
     "outcome_at": "TEXT",
     "last_price": "REAL",
+    "bar_date": "TEXT",
 }
+
+_UNIQUE_DEDUPE_INDEX = (
+    "CREATE UNIQUE INDEX IF NOT EXISTS idx_suggestions_dedupe_key ON suggestions (dedupe_key)"
+)
 
 _INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_suggestions_symbol_generated_at "
@@ -67,7 +72,7 @@ _INDEX = (
 _SELECT_COLUMNS = (
     "id, symbol, direction, price, score, indicators_json, triggered_rules_json, "
     "sources_json, rationale, status, generated_at, updated_at, "
-    "stop_price, target_price, outcome, outcome_price, outcome_at, last_price"
+    "stop_price, target_price, outcome, outcome_price, outcome_at, last_price, bar_date"
 )
 
 
@@ -94,6 +99,7 @@ class SuggestionStore:
                 if column not in existing:
                     conn.execute(f"ALTER TABLE suggestions ADD COLUMN {column} {ddl}")  # nosec B608
             conn.execute(_INDEX)
+            conn.execute(_UNIQUE_DEDUPE_INDEX)
             conn.commit()
 
     @contextmanager
@@ -104,8 +110,8 @@ class SuggestionStore:
         finally:
             conn.close()
 
-    def exists_for_today(self, symbol: str, direction: str, today: str | None = None) -> bool:
-        day = today or datetime.now(UTC).date().isoformat()
+    def exists_for_day(self, symbol: str, direction: str, day: str) -> bool:
+        """Whether a suggestion already exists for this symbol+direction on `day` (ISO date)."""
         key = dedupe_key(symbol, direction, day)
         with self._connect() as conn:
             row = conn.execute("SELECT 1 FROM suggestions WHERE dedupe_key = ?", (key,)).fetchone()
@@ -113,7 +119,9 @@ class SuggestionStore:
 
     def create(self, signal: Signal, rationale: str | None) -> Suggestion:
         now = datetime.now(UTC).isoformat()
-        day = signal.generated_at.date().isoformat()
+        # Keyed on the date of the daily bar the crossover fired on - not the wall clock - so
+        # re-detecting the same crossover on evenings/weekends never logs a duplicate.
+        day = (signal.bar_date or signal.generated_at.date()).isoformat()
         key = dedupe_key(signal.symbol, signal.direction.value, day)
 
         with self._connect() as conn:
@@ -122,8 +130,8 @@ class SuggestionStore:
                 INSERT INTO suggestions (
                     symbol, direction, price, score, indicators_json, triggered_rules_json,
                     sources_json, rationale, status, generated_at, updated_at, dedupe_key,
-                    stop_price, target_price
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    stop_price, target_price, bar_date
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     signal.symbol,
@@ -140,6 +148,7 @@ class SuggestionStore:
                     key,
                     signal.stop_price,
                     signal.target_price,
+                    signal.bar_date.isoformat() if signal.bar_date else None,
                 ),
             )
             conn.commit()
@@ -177,6 +186,7 @@ class SuggestionStore:
             outcome_price,
             outcome_at,
             last_price,
+            bar_date,
         ) = row
         mark = outcome_price if outcome_price is not None else last_price
         return Suggestion(
@@ -198,6 +208,7 @@ class SuggestionStore:
             outcome_price=outcome_price,
             outcome_at=outcome_at,
             last_price=last_price,
+            bar_date=date.fromisoformat(bar_date) if bar_date else None,
             return_pct=return_pct(SignalDirection(direction), price, mark) if mark is not None else None,
         )
 

@@ -183,3 +183,26 @@ def test_composite_score_skips_the_volume_bonus_below_threshold():
 def test_in_healthy_rsi_zone_uses_the_bearish_range_for_bearish_signals():
     assert _in_healthy_rsi_zone(SignalDirection.bearish, 45.0) is True
     assert _in_healthy_rsi_zone(SignalDirection.bearish, 60.0) is False
+
+
+def test_signal_carries_the_date_of_the_bar_it_fired_on():
+    bars = crossover_bars("bullish")
+    signal = detect_crossover_signal(ScanCandidate("AAPL", {SignalSource.watchlist}), bars)
+    assert signal.bar_date == bars[-1].timestamp.date()
+
+
+def test_drop_incomplete_bar_removes_todays_bar_until_the_session_closes():
+    from datetime import UTC, datetime
+
+    from app.engine.screener import drop_incomplete_bar
+
+    bars = crossover_bars("bullish")
+    last_day = bars[-1].timestamp  # midnight UTC == the ET trading date
+    midday = datetime(last_day.year, last_day.month, last_day.day, 17, 0, tzinfo=UTC)  # 13:00 ET
+    evening = datetime(last_day.year, last_day.month, last_day.day, 23, 0, tzinfo=UTC)  # 19:00 ET
+    next_day = midday.replace(day=midday.day + 1)
+
+    assert drop_incomplete_bar(bars, midday) == bars[:-1]
+    assert drop_incomplete_bar(bars, evening) == bars
+    assert drop_incomplete_bar(bars, next_day) == bars
+    assert drop_incomplete_bar([], midday) == []

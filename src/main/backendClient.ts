@@ -248,7 +248,7 @@ export async function exportSuggestionsCsv(hours?: number): Promise<string> {
   } catch {
     throw new Error(
       `Could not reach the Tide Trader backend at ${BACKEND_BASE_URL}. ` +
-        'Is it running? (cd core && uv run python -m app.main)'
+        'Is it running? (run `uv run python -m app.main` in the core/ directory)'
     )
   }
 

@@ -38,6 +38,14 @@ _CSV_HEADER = [
 ]
 
 
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value: str) -> str:
+    """Neutralize spreadsheet formula injection: cells starting with = + - @ run as formulas."""
+    return f"'{value}" if value.startswith(_FORMULA_PREFIXES) else value
+
+
 def _parse_status_filter(raw_status: str) -> SuggestionStatus | None:
     if raw_status == "all":
         return None
@@ -66,7 +74,9 @@ def suggestion_performance(store: SuggestionStore = Depends(get_suggestion_store
 
 @router.get("/export")
 def export_suggestions_csv(
-    hours: float | None = Query(default=None, gt=0, description="Only include suggestions from the last N hours."),
+    hours: float | None = Query(
+        default=None, gt=0, description="Only include suggestions from the last N hours."
+    ),
     store: SuggestionStore = Depends(get_suggestion_store),
 ) -> Response:
     since = datetime.now(UTC) - timedelta(hours=hours) if hours is not None else None
@@ -80,7 +90,7 @@ def export_suggestions_csv(
         writer.writerow(
             [
                 row.id,
-                row.symbol,
+                _csv_safe(row.symbol),
                 row.direction.value,
                 row.price,
                 row.score,
@@ -93,9 +103,9 @@ def export_suggestions_csv(
                 row.indicators.sma_slow,
                 row.indicators.rsi14,
                 row.indicators.volume_ratio,
-                ";".join(row.triggered_rules),
-                ";".join(source.value for source in row.sources),
-                row.rationale or "",
+                _csv_safe(";".join(row.triggered_rules)),
+                _csv_safe(";".join(source.value for source in row.sources)),
+                _csv_safe(row.rationale or ""),
                 row.status.value,
                 row.generated_at.isoformat(),
                 row.updated_at.isoformat(),
