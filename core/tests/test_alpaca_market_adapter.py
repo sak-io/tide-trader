@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-
 from alpaca.data.enums import DataFeed
 from alpaca.data.timeframe import TimeFrameUnit
 
@@ -46,7 +45,7 @@ def test_get_movers_maps_gainers_and_losers():
 
 
 def test_get_bars_maps_fields_and_uppercases_symbol():
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     bars = {
         "AAPL": [
             SimpleNamespace(timestamp=now, open=190.0, high=191.0, low=189.0, close=190.5, volume=1000.0),

@@ -7,7 +7,9 @@ from app.models.domain import OrderRequest, OrderSide, OrderStatus, OrderType
 from tests.fakes import FakeMarketDataClient, FakeTradingClient
 
 
-def make_adapter(equity=10000.0, last_equity=10100.0, prices=None) -> tuple[AlpacaTradeAdapter, FakeTradingClient]:
+def make_adapter(
+    equity=10000.0, last_equity=10100.0, prices=None
+) -> tuple[AlpacaTradeAdapter, FakeTradingClient]:
     trading_client = FakeTradingClient(equity=equity, last_equity=last_equity)
     market_client = FakeMarketDataClient(prices or {"AAPL": 190.0})
     return AlpacaTradeAdapter(trading_client, market_client), trading_client
@@ -43,7 +45,9 @@ def test_submit_market_order_maps_response_fields():
 
 def test_submit_limit_order_maps_limit_order_type():
     adapter, _ = make_adapter()
-    order = OrderRequest(symbol="MSFT", qty=2, side=OrderSide.sell, order_type=OrderType.limit, limit_price=300.0)
+    order = OrderRequest(
+        symbol="MSFT", qty=2, side=OrderSide.sell, order_type=OrderType.limit, limit_price=300.0
+    )
 
     response = adapter.submit_order(order)
 

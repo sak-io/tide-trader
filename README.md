@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/sak-io/tide-trader/actions/workflows/ci.yml/badge.svg)](https://github.com/sak-io/tide-trader/actions/workflows/ci.yml)
 
-A macOS desktop app for realtime market research on top of Alpaca's paper trading
+A desktop app (macOS and Windows) for realtime market research on top of Alpaca's paper trading
 API — live quotes, most-active/mover screeners, and historical price charts —
 paired with a Python backend that owns order execution and risk controls.
 
@@ -36,13 +36,31 @@ together and why they're built this way.
   run `nvm install 22 && nvm use 22`.
 - **Python 3.12** and [`uv`](https://docs.astral.sh/uv/) for the backend.
 - An **Alpaca Paper Trading account** (free) — see below.
-- macOS (the Electron app targets macOS; an iOS companion app is a future
-  goal, not built yet). Electron 44+ requires macOS 13 (Ventura) or newer —
-  on macOS 12 (Monterey) or older, the app crashes on launch with a `dyld`
-  error (`Symbol not found: _OBJC_CLASS_$_SMAppService`). This repo pins
-  Electron to the 43.x line specifically to stay compatible with macOS 12;
-  don't bump past `44.0.0` without checking your minimum supported macOS
-  version first.
+- macOS or Windows 10/11 (an iOS companion app is a future goal, not built
+  yet). On Linux the backend and tests run fine (CI covers it); the desktop
+  app should too, but it isn't a supported target.
+  - Electron 44+ requires macOS 13 (Ventura) or newer. On macOS 12 (Monterey)
+    or older, the app crashes on launch with a `dyld` error
+    (`Symbol not found: _OBJC_CLASS_$_SMAppService`). This repo pins Electron
+    to the 43.x line specifically to stay compatible with macOS 12; don't bump
+    past `44.0.0` without checking your minimum supported macOS version first.
+
+### Windows
+
+Everything below works on Windows; where a command differs, a PowerShell
+equivalent is given. To get the prerequisites (PowerShell, no admin needed
+for `uv`):
+
+```powershell
+winget install OpenJS.NodeJS.LTS                     # or nvm-windows: nvm install 22; nvm use 22
+winget install Python.Python.3.12
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Open a new terminal afterwards so `node`, `npm` and `uv` are on `PATH`.
+There's no need to activate the virtualenv by hand on any platform — always
+go through `uv run` (on Windows the venv's executables live in
+`core\.venv\Scripts\`, not `core/.venv/bin/`).
 
 ### Getting Alpaca paper trading API keys
 
@@ -64,11 +82,24 @@ cp .env.example .env   # optional - only risk limits and mode, no API keys go he
 uv run python -m app.main
 ```
 
+On Windows (PowerShell):
+
+```powershell
+cd core
+uv sync
+Copy-Item .env.example .env   # optional
+uv run python -m app.main
+```
+
 The API listens on `http://127.0.0.1:8000` by default. It's intentionally
 bound to localhost only — this service can place real (paper) orders and
 isn't meant to be reachable from anything but the desktop app on the same
 machine. On first run it generates a shared access token at
-`~/.tide-trader/access-token` (owner-read-only) that the desktop app reads to
+`~/.tide-trader/access-token` (owner-read-only; on Windows
+`%USERPROFILE%\.tide-trader\access-token`, whose permissions the backend resets with
+`icacls` so that only your account can read or write it — not even SYSTEM or
+Administrators; if that fails the backend logs a warning with the command to run by hand,
+which matters most if you set `TIDE_TRADER_ACCESS_TOKEN_PATH` outside your profile) that the desktop app reads to
 authenticate its requests — no login system, just a check that the caller is
 this laptop's own Electron app. Your Alpaca API Key ID/Secret are **not**
 configured via `.env` — you connect them at runtime (see below); the backend
@@ -150,10 +181,11 @@ language:
 - **backend-tests** — `uv sync --locked`, then `ruff check`, `bandit`,
   `pip-audit`, and `pytest --cov=app` in `core/`.
 - **frontend-build** — `npm ci`, `npm run allow-scripts`, `npm run lint`,
-  `npm audit --omit=dev`, `npm run typecheck`, `npm run build` for the
-  Electron app.
+  `npm audit --omit=dev`, `npm test`, `npm run typecheck`, `npm run build`
+  for the Electron app.
 
-Both must pass before merging a PR.
+Each job runs on both `ubuntu-latest` and `windows-latest`, and all must pass
+before merging a PR.
 
 ## Project structure
 

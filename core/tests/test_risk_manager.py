@@ -8,9 +8,13 @@ from app.engine.risk_manager import RiskManager, RiskViolation
 from app.engine.state_store import StateStore
 
 
-def make_manager(tmp_path, max_dollars: float = 5000.0, daily_loss_pct: float = 0.03, clock=None) -> RiskManager:
+def make_manager(
+    tmp_path, max_dollars: float = 5000.0, daily_loss_pct: float = 0.03, clock=None
+) -> RiskManager:
     store = StateStore(tmp_path / "state.db")
-    return RiskManager(store, max_position_dollars=max_dollars, daily_loss_limit_pct=daily_loss_pct, clock=clock)
+    return RiskManager(
+        store, max_position_dollars=max_dollars, daily_loss_limit_pct=daily_loss_pct, clock=clock
+    )
 
 
 def test_order_exceeding_max_dollar_threshold_raises(tmp_path):

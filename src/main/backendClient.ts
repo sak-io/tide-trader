@@ -14,9 +14,11 @@ import type {
 
 const BACKEND_BASE_URL = 'http://127.0.0.1:8000'
 
-// The backend generates this on first run and writes it here (0o600) - see
+// The backend generates this on first run and writes it here (owner-only) - see
 // core/app/security/access_token.py. Both processes read/write this same
 // well-known path, so there's no login/hand-off endpoint needed between them.
+// homedir() and Python's Path.home() agree on every platform (on Windows both
+// resolve %USERPROFILE%), so this is %USERPROFILE%\.tide-trader\access-token there.
 const ACCESS_TOKEN_PATH = join(homedir(), '.tide-trader', 'access-token')
 
 function readAccessToken(): string {
@@ -25,7 +27,7 @@ function readAccessToken(): string {
   } catch {
     throw new Error(
       `Could not read the Tide Trader backend's access token at ${ACCESS_TOKEN_PATH}. ` +
-        'Is the backend running yet? (cd core && uv run python -m app.main)'
+        'Is the backend running yet? (run `uv run python -m app.main` in the core/ directory)'
     )
   }
 }
@@ -45,7 +47,7 @@ async function backendRequest<T>(path: string, init: RequestInit = {}): Promise<
   } catch {
     throw new Error(
       `Could not reach the Tide Trader backend at ${BACKEND_BASE_URL}. ` +
-        'Is it running? (cd core && uv run python -m app.main)'
+        'Is it running? (run `uv run python -m app.main` in the core/ directory)'
     )
   }
 
